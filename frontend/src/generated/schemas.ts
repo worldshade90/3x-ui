@@ -1832,7 +1832,7 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "string"
       },
       "speedDown": {
-        "description": "Download cap in bytes/s. 0 = unlimited. 1 KB/s = 1024 B/s, 1 MB/s = 1024 KB/s.",
+        "description": "Download cap in bytes/s. 0 = unlimited. 1 kbit/s = 125 B/s.",
         "example": 0,
         "format": "int64",
         "type": "integer"
@@ -1843,7 +1843,7 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "string"
       },
       "speedUp": {
-        "description": "Upload cap in bytes/s. Legacy Mbit/s was 125000 B/s, so 1 MB/s ≈ 8.389 Mbit/s.",
+        "description": "Upload cap in bytes/s. 0 = unlimited. 1 Mbit/s = 125000 B/s.",
         "example": 0,
         "format": "int64",
         "type": "integer"

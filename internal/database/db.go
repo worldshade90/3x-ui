@@ -219,9 +219,6 @@ func initModels() error {
 	if err := migrateClientSpeedColumns(); err != nil {
 		return err
 	}
-	if err := migrateClientSpeedMbitToBytes(); err != nil {
-		return err
-	}
 	if IsPostgres() {
 		if err := resyncPostgresSequences(db, models); err != nil {
 			log.Printf("Error resyncing postgres sequences: %v", err)
@@ -1592,6 +1589,12 @@ func runSeeders(isUsersEmpty bool) error {
 			}
 		}
 		return seedApiTokens()
+	}
+
+	// A history row from initModels makes a blank database look used, so the
+	// one-shot host and mtproto seeders would run before any inbound exists.
+	if err := migrateClientSpeedMbitToBytes(); err != nil {
+		return err
 	}
 
 	var seedersHistory []string
