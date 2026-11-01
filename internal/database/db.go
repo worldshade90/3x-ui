@@ -212,6 +212,9 @@ func initModels() error {
 	if err := migrateSyncOrphanColumns(); err != nil {
 		return err
 	}
+	if err := migrateClientSpeedLimitColumns(); err != nil {
+		return err
+	}
 	if err := migrateClientEmailLowerIndex(); err != nil {
 		return err
 	}
@@ -393,6 +396,22 @@ func migrateClientTrafficResetColumns() error {
 func migrateClientResetWeekdayColumns() error {
 	for _, table := range []string{"clients", "client_traffics"} {
 		if err := db.Table(table).Where("reset_weekday IS NULL").UpdateColumn("reset_weekday", 0).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AutoMigrate adds speed_down/speed_up. SQLite can leave them NULL, which must
+// read back as 0 (unlimited) without wiping a rate that was already configured.
+func migrateClientSpeedLimitColumns() error {
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_down") {
+		if err := db.Exec("UPDATE clients SET speed_down = 0 WHERE speed_down IS NULL").Error; err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_up") {
+		if err := db.Exec("UPDATE clients SET speed_up = 0 WHERE speed_up IS NULL").Error; err != nil {
 			return err
 		}
 	}

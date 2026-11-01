@@ -11,6 +11,7 @@ import {
   Space,
   Switch,
   Tooltip,
+  Typography,
   message,
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
@@ -54,6 +55,8 @@ const EMPTY: ClientBulkAddFormValues = {
   comment: '',
   flow: '',
   limitIp: 0,
+  speedDown: 0,
+  speedUp: 0,
   limitHwid: 0,
   totalGB: 0,
   expiryTime: 0,
@@ -211,6 +214,8 @@ export default function ClientBulkAddModal({
           trafficReset: current.trafficReset || 'never',
           trafficResetDay: Number(current.trafficResetDay) || 1,
           limitIp: Number(current.limitIp) || 0,
+          speedDown: Number(current.speedDown) || 0,
+          speedUp: Number(current.speedUp) || 0,
           limitHwid: Number(current.limitHwid) || 0,
           group: current.group,
           comment: current.comment,
@@ -358,6 +363,25 @@ export default function ClientBulkAddModal({
               />
             </FormField>
 
+            <FormField
+              name="speedDown"
+              label={t('pages.clients.speedDown')}
+              tooltip={t('pages.clients.speedDownDesc')}
+              transform={{ output: (v) => Number(v) || 0 }}
+            >
+              <InputNumber min={0} max={100000} />
+            </FormField>
+            <FormField
+              name="speedUp"
+              label={t('pages.clients.speedUp')}
+              tooltip={t('pages.clients.speedUpDesc')}
+              transform={{ output: (v) => Number(v) || 0 }}
+            >
+              <InputNumber min={0} max={100000} />
+            </FormField>
+            <Typography.Text type="secondary">
+              {t('pages.clients.speedLimitNotice')}
+            </Typography.Text>
             <FormField
               name="limitHwid"
               label={t('pages.clients.limitHwid')}

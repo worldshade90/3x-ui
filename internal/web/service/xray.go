@@ -14,8 +14,10 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
+	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/speedlimit"
 	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/json_util"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/maskcompat"
@@ -482,7 +484,53 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 
 	xrayConfig.RouterConfig = dropRefusedScript(xrayConfig.RouterConfig, "routing", routingScriptRefused)
 	xrayConfig.DNSConfig = dropRefusedScript(xrayConfig.DNSConfig, "dns", dnsScriptRefused)
+	if err := injectSpeedLimits(xrayConfig); err != nil {
+		logger.Warning("speed limit:", err)
+	}
 	return xrayConfig, nil
+}
+
+// injectSpeedLimits clones a marked outbound per limited client on Linux.
+// Off Linux the caps stay in the database and nothing in the core config changes.
+func injectSpeedLimits(cfg *xray.Config) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	clients, err := speedlimit.LoadActive(database.GetDB())
+	if err != nil || len(clients) == 0 {
+		return err
+	}
+	routing, outbounds, err := speedlimit.Inject(cfg.RouterConfig, cfg.OutboundConfigs, clients)
+	if err != nil {
+		return err
+	}
+	cfg.RouterConfig = routing
+	cfg.OutboundConfigs = outbounds
+	return nil
+}
+
+// SpeedLimitDrift reports that the running core is missing the fwmark routes
+// the current client caps require, or still has them after the caps were cleared.
+func (s *XrayService) SpeedLimitDrift() bool {
+	proc := currentXrayProcess()
+	if proc == nil || !proc.IsRunning() || proc.GetConfig() == nil {
+		return false
+	}
+	running := speedlimit.Fingerprint(proc.GetConfig().RouterConfig, proc.GetConfig().OutboundConfigs)
+	active, err := speedlimit.LoadActive(database.GetDB())
+	if err != nil {
+		logger.Warning("speed limit:", err)
+		return false
+	}
+	if len(active) == 0 && running == "" {
+		return false
+	}
+	desired, err := s.GetXrayConfig()
+	if err != nil {
+		logger.Warning("speed limit config:", err)
+		return false
+	}
+	return speedlimit.Fingerprint(desired.RouterConfig, desired.OutboundConfigs) != running
 }
 
 // PanelEgressInboundTag is the tag of the loopback SOCKS inbound injected into

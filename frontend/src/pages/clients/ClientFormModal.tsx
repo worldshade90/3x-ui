@@ -170,6 +170,8 @@ const EMPTY: Values = {
   trafficReset: 'never' as const,
   trafficResetDay: 1,
   limitIp: 0,
+  speedDown: 0,
+  speedUp: 0,
   limitHwid: 0,
   tgId: 0,
   group: '',
@@ -389,6 +391,8 @@ export default function ClientFormModal({
         trafficReset: (client.trafficReset as ClientFormValues['trafficReset']) || 'never',
         trafficResetDay: Number(client.trafficResetDay) || 1,
         limitIp: client.limitIp || 0,
+        speedDown: client.speedDown || 0,
+        speedUp: client.speedUp || 0,
         limitHwid: client.limitHwid || 0,
         tgId: Number(client.tgId) || 0,
         group: client.group || '',
@@ -754,6 +758,8 @@ export default function ClientFormModal({
       trafficReset: values.trafficReset,
       trafficResetDay: values.trafficResetDay,
       limitIp: values.limitIp,
+      speedDown: values.speedDown,
+      speedUp: values.speedUp,
       limitHwid: values.limitHwid,
       tgId: values.tgId,
       group: values.group,
@@ -792,6 +798,8 @@ export default function ClientFormModal({
       trafficReset: values.trafficReset || 'never',
       trafficResetDay: Number(values.trafficResetDay) || 1,
       limitIp: Number(values.limitIp) || 0,
+      speedDown: Number(values.speedDown) || 0,
+      speedUp: Number(values.speedUp) || 0,
       limitHwid: Number(values.limitHwid) || 0,
       tgId: Number(values.tgId) || 0,
       group: values.group,
@@ -982,6 +990,31 @@ export default function ClientFormModal({
                           >
                             <InputNumber min={0} step={1} style={{ width: '100%' }} />
                           </FormField>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <FormField
+                            name="speedDown"
+                            label={t('pages.clients.speedDown')}
+                            tooltip={t('pages.clients.speedDownDesc')}
+                            transform={{ output: (v) => Number(v) || 0 }}
+                          >
+                            <InputNumber min={0} max={100000} step={1} style={{ width: '100%' }} />
+                          </FormField>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <FormField
+                            name="speedUp"
+                            label={t('pages.clients.speedUp')}
+                            tooltip={t('pages.clients.speedUpDesc')}
+                            transform={{ output: (v) => Number(v) || 0 }}
+                          >
+                            <InputNumber min={0} max={100000} step={1} style={{ width: '100%' }} />
+                          </FormField>
+                        </Col>
+                        <Col span={24}>
+                          <Typography.Text type="secondary">
+                            {t('pages.clients.speedLimitNotice')}
+                          </Typography.Text>
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item

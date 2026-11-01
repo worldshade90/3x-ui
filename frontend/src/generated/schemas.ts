@@ -1831,6 +1831,16 @@ export const SCHEMAS: Record<string, unknown> = {
         "description": "Security method (e.g., \"auto\", \"aes-128-gcm\")",
         "type": "string"
       },
+      "speedDown": {
+        "description": "Download cap, Mbit/s. Nil keeps the stored value; 0 is unlimited.",
+        "nullable": true,
+        "type": "integer"
+      },
+      "speedUp": {
+        "description": "Upload cap, Mbit/s. Nil keeps the stored value; 0 is unlimited.",
+        "nullable": true,
+        "type": "integer"
+      },
       "subId": {
         "description": "Subscription identifier",
         "type": "string"
@@ -2056,6 +2066,16 @@ export const SCHEMAS: Record<string, unknown> = {
       "security": {
         "type": "string"
       },
+      "speedDown": {
+        "description": "Download cap, Mbit/s. 0 = unlimited.",
+        "example": 0,
+        "type": "integer"
+      },
+      "speedUp": {
+        "description": "Upload cap, Mbit/s. 0 = unlimited.",
+        "example": 0,
+        "type": "integer"
+      },
       "subId": {
         "type": "string"
       },
@@ -2108,6 +2128,8 @@ export const SCHEMAS: Record<string, unknown> = {
       "reverse",
       "secret",
       "security",
+      "speedDown",
+      "speedUp",
       "subId",
       "tgId",
       "totalGB",

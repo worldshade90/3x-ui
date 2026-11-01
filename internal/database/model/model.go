@@ -956,19 +956,21 @@ type Client struct {
 	ForwardedPorts      string           `json:"forwardedPorts,omitempty"` // AmneziaWG per-client port-forwarding spec, e.g. "80,443,8000-8100"
 	Secret              string           `json:"secret,omitempty" example:"ee1234567890abcdef1234567890abcd7777772e636c6f7564666c6172652e636f6d"`
 	AdTag               string           `json:"adTag,omitempty" example:"0123456789abcdef0123456789abcdef"`
-	Email               string           `json:"email"`                            // Client email identifier
-	LimitIP             int              `json:"limitIp"`                          // IP limit for this client
-	TotalGB             int64            `json:"totalGB" form:"totalGB"`           // Total traffic limit in GB
-	ExpiryTime          int64            `json:"expiryTime" form:"expiryTime"`     // Expiration timestamp
-	Enable              bool             `json:"enable" form:"enable"`             // Whether the client is enabled
-	TgID                int64            `json:"tgId" form:"tgId"`                 // Telegram user ID for notifications
-	SubID               string           `json:"subId" form:"subId"`               // Subscription identifier
-	Group               string           `json:"group,omitempty" form:"group"`     // Logical grouping label
-	Comment             string           `json:"comment" form:"comment"`           // Client comment
-	Reset               int              `json:"reset" form:"reset"`               // Reset period in days
-	ResetDay            int              `json:"resetDay" form:"resetDay"`         // Calendar renewal day 1-31, 0 disables monthly renewal
-	ResetWeekday        int              `json:"resetWeekday" form:"resetWeekday"` // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
-	ResetMax            int              `json:"resetMax" form:"resetMax"`         // Max auto-renew count, 0 = unlimited
+	Email               string           `json:"email"`                                // Client email identifier
+	LimitIP             int              `json:"limitIp"`                              // IP limit for this client
+	SpeedDown           *int             `json:"speedDown,omitempty" form:"speedDown"` // Download cap, Mbit/s. Nil keeps the stored value; 0 is unlimited.
+	SpeedUp             *int             `json:"speedUp,omitempty" form:"speedUp"`     // Upload cap, Mbit/s. Nil keeps the stored value; 0 is unlimited.
+	TotalGB             int64            `json:"totalGB" form:"totalGB"`               // Total traffic limit in GB
+	ExpiryTime          int64            `json:"expiryTime" form:"expiryTime"`         // Expiration timestamp
+	Enable              bool             `json:"enable" form:"enable"`                 // Whether the client is enabled
+	TgID                int64            `json:"tgId" form:"tgId"`                     // Telegram user ID for notifications
+	SubID               string           `json:"subId" form:"subId"`                   // Subscription identifier
+	Group               string           `json:"group,omitempty" form:"group"`         // Logical grouping label
+	Comment             string           `json:"comment" form:"comment"`               // Client comment
+	Reset               int              `json:"reset" form:"reset"`                   // Reset period in days
+	ResetDay            int              `json:"resetDay" form:"resetDay"`             // Calendar renewal day 1-31, 0 disables monthly renewal
+	ResetWeekday        int              `json:"resetWeekday" form:"resetWeekday"`     // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
+	ResetMax            int              `json:"resetMax" form:"resetMax"`             // Max auto-renew count, 0 = unlimited
 	// Per-client traffic reset cycle, independent of the inbound's own (#5497).
 	TrafficReset    string `json:"trafficReset,omitempty" form:"trafficReset" validate:"omitempty,oneof=never hourly daily weekly monthly"`
 	TrafficResetDay int    `json:"trafficResetDay,omitempty" form:"trafficResetDay" validate:"omitempty,gte=1,lte=31"`
@@ -998,21 +1000,27 @@ type ClientRecord struct {
 	Secret            string         `json:"secret" gorm:"column:secret"`
 	AdTag             string         `json:"adTag" gorm:"column:ad_tag;default:''"`
 	LimitIP           int            `json:"limitIp" gorm:"column:limit_ip"`
-	LimitHwid         int            `json:"limitHwid" gorm:"column:limit_hwid;default:0"`
-	TotalGB           int64          `json:"totalGB" gorm:"column:total_gb"`
-	ExpiryTime        int64          `json:"expiryTime" gorm:"column:expiry_time"`
-	Enable            bool           `json:"enable" gorm:"default:true"`
-	TgID              int64          `json:"tgId" gorm:"column:tg_id;index:idx_clients_tg_id"`
-	Group             string         `json:"group" gorm:"column:group_name;default:'';index:idx_client_record_group"`
-	Comment           string         `json:"comment"`
-	Reset             int            `json:"reset" gorm:"default:0"`
-	ResetDay          int            `json:"resetDay" gorm:"column:reset_day;default:0"`
-	ResetWeekday      int            `json:"resetWeekday" gorm:"column:reset_weekday;default:0"`
-	ResetMax          int            `json:"resetMax" gorm:"column:reset_max;default:0"`
-	TrafficReset      string         `json:"trafficReset" gorm:"column:traffic_reset;default:never;index:idx_clients_traffic_reset"`
-	TrafficResetDay   int            `json:"trafficResetDay" gorm:"column:traffic_reset_day;default:1"`
-	CreatedAt         int64          `json:"createdAt" gorm:"autoCreateTime:milli"`
-	UpdatedAt         int64          `json:"updatedAt" gorm:"autoUpdateTime:milli"`
+	SpeedDown         int            `json:"speedDown" gorm:"column:speed_down;default:0" example:"0"` // Download cap, Mbit/s. 0 = unlimited.
+	SpeedUp           int            `json:"speedUp" gorm:"column:speed_up;default:0" example:"0"`     // Upload cap, Mbit/s. 0 = unlimited.
+	// SpeedDownSet reports that the API payload included speedDown.
+	// SyncInbound must not treat an omitted field as "set unlimited".
+	SpeedDownSet    bool   `json:"-" gorm:"-"`
+	SpeedUpSet      bool   `json:"-" gorm:"-"`
+	LimitHwid       int    `json:"limitHwid" gorm:"column:limit_hwid;default:0"`
+	TotalGB         int64  `json:"totalGB" gorm:"column:total_gb"`
+	ExpiryTime      int64  `json:"expiryTime" gorm:"column:expiry_time"`
+	Enable          bool   `json:"enable" gorm:"default:true"`
+	TgID            int64  `json:"tgId" gorm:"column:tg_id;index:idx_clients_tg_id"`
+	Group           string `json:"group" gorm:"column:group_name;default:'';index:idx_client_record_group"`
+	Comment         string `json:"comment"`
+	Reset           int    `json:"reset" gorm:"default:0"`
+	ResetDay        int    `json:"resetDay" gorm:"column:reset_day;default:0"`
+	ResetWeekday    int    `json:"resetWeekday" gorm:"column:reset_weekday;default:0"`
+	ResetMax        int    `json:"resetMax" gorm:"column:reset_max;default:0"`
+	TrafficReset    string `json:"trafficReset" gorm:"column:traffic_reset;default:never;index:idx_clients_traffic_reset"`
+	TrafficResetDay int    `json:"trafficResetDay" gorm:"column:traffic_reset_day;default:1"`
+	CreatedAt       int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
+	UpdatedAt       int64  `json:"updatedAt" gorm:"autoUpdateTime:milli"`
 	// Owned solely by the node-snapshot sweep, which soft-orphans instead of
 	// deleting; orphans from any other cause stay at zero and are never reaped.
 	SyncOrphanedAt int64 `json:"-" gorm:"column:sync_orphaned_at;default:0"`
@@ -1304,6 +1312,14 @@ func (c *Client) ToRecord() *ClientRecord {
 		Secret:         c.Secret,
 		AdTag:          c.AdTag,
 	}
+	if c.SpeedDown != nil {
+		rec.SpeedDown = *c.SpeedDown
+		rec.SpeedDownSet = true
+	}
+	if c.SpeedUp != nil {
+		rec.SpeedUp = *c.SpeedUp
+		rec.SpeedUpSet = true
+	}
 	if c.Reverse != nil {
 		if b, err := json.Marshal(c.Reverse); err == nil {
 			rec.Reverse = string(b)
@@ -1364,6 +1380,9 @@ func (r *ClientRecord) ToClient() *Client {
 		Secret:         r.Secret,
 		AdTag:          r.AdTag,
 	}
+	down, up := r.SpeedDown, r.SpeedUp
+	c.SpeedDown = &down
+	c.SpeedUp = &up
 	if r.Reverse != "" {
 		var rev ClientReverse
 		if err := json.Unmarshal([]byte(r.Reverse), &rev); err == nil {
@@ -1559,6 +1578,28 @@ func MergeClientRecord(existing *ClientRecord, incoming *ClientRecord) []ClientM
 		if picked != existing.LimitIP {
 			keep("limitIp", existing.LimitIP, incoming.LimitIP, picked)
 			existing.LimitIP = picked
+		}
+	}
+	// A smaller positive rate is the stricter cap, unlike LimitIP where a larger count is stricter.
+	// Zero means "not set" on this path so a partial sync cannot clear a cap back to unlimited.
+	if existing.SpeedDown != incoming.SpeedDown && incoming.SpeedDown != 0 {
+		picked := existing.SpeedDown
+		if existing.SpeedDown == 0 || incoming.SpeedDown < existing.SpeedDown {
+			picked = incoming.SpeedDown
+		}
+		if picked != existing.SpeedDown {
+			keep("speedDown", existing.SpeedDown, incoming.SpeedDown, picked)
+			existing.SpeedDown = picked
+		}
+	}
+	if existing.SpeedUp != incoming.SpeedUp && incoming.SpeedUp != 0 {
+		picked := existing.SpeedUp
+		if existing.SpeedUp == 0 || incoming.SpeedUp < existing.SpeedUp {
+			picked = incoming.SpeedUp
+		}
+		if picked != existing.SpeedUp {
+			keep("speedUp", existing.SpeedUp, incoming.SpeedUp, picked)
+			existing.SpeedUp = picked
 		}
 	}
 	if existing.LimitHwid != incoming.LimitHwid && incoming.LimitHwid != 0 {

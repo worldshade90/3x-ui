@@ -40,6 +40,15 @@ func TestUpdate_PersistsFields_NoInbound(t *testing.T) {
 			want:     7,
 		},
 		{
+			name: "speed limits",
+			mutate: func(c *model.Client) {
+				down, up := 15, 4
+				c.SpeedDown, c.SpeedUp = &down, &up
+			},
+			readBack: func(rec *model.ClientRecord) any { return [2]int{rec.SpeedDown, rec.SpeedUp} },
+			want:     [2]int{15, 4},
+		},
+		{
 			name:     "tgId",
 			mutate:   func(c *model.Client) { c.TgID = 9876543210 },
 			readBack: func(rec *model.ClientRecord) any { return rec.TgID },
@@ -201,5 +210,41 @@ func TestApplyClientRecordMerge_MirrorsSyncInboundRules(t *testing.T) {
 	}
 	if row.Comment != "new-comment" {
 		t.Fatalf("incoming Comment is unconditional and should overwrite, got %q", row.Comment)
+	}
+}
+
+func TestUpdate_NoInbound_ClearsSpeed(t *testing.T) {
+	setupBulkDB(t)
+	svc := &ClientService{}
+	email := "noib-clear-speed@x"
+	rec := &model.ClientRecord{Email: email, SubID: email, UUID: "11111111-1111-1111-1111-111111111111", SpeedDown: 15, SpeedUp: 4}
+	if err := database.GetDB().Create(rec).Error; err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	updated := rec.ToClient()
+	zero := 0
+	updated.SpeedDown, updated.SpeedUp = &zero, &zero
+	if _, err := svc.Update(&InboundService{}, rec.Id, *updated, 0); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got, err := svc.GetByID(rec.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SpeedDown != 0 || got.SpeedUp != 0 {
+		t.Fatalf("speed not cleared, down %d up %d", got.SpeedDown, got.SpeedUp)
+	}
+}
+
+func TestApplyClientRecordMerge_OmittedSpeedDoesNotClear(t *testing.T) {
+	row := &model.ClientRecord{SpeedDown: 10, SpeedUp: 4}
+	applyClientRecordMerge(row, (&model.Client{Email: "a@x"}).ToRecord())
+	if row.SpeedDown != 10 || row.SpeedUp != 4 {
+		t.Fatalf("omitted speed cleared the cap, got down %d up %d", row.SpeedDown, row.SpeedUp)
+	}
+	zero := 0
+	applyClientRecordMerge(row, (&model.Client{SpeedDown: &zero, SpeedUp: &zero}).ToRecord())
+	if row.SpeedDown != 0 || row.SpeedUp != 0 {
+		t.Fatalf("explicit zero did not clear the cap, got down %d up %d", row.SpeedDown, row.SpeedUp)
 	}
 }

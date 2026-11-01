@@ -19,6 +19,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/speedlimit"
 	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/random"
@@ -34,6 +35,45 @@ func hasForbiddenClientChar(s string) bool {
 		}
 	}
 	return false
+}
+
+func validateClientSpeed(down, up *int) error {
+	if err := validateOneSpeed("speedDown", down); err != nil {
+		return err
+	}
+	return validateOneSpeed("speedUp", up)
+}
+
+func validateOneSpeed(name string, v *int) error {
+	if v == nil {
+		return nil
+	}
+	if *v < 0 || *v > speedlimit.MaxMbit {
+		return common.NewErrorf("%s must be between 0 and %d Mbit/s", name, speedlimit.MaxMbit)
+	}
+	return nil
+}
+
+func speedPositive(down, up *int) bool {
+	return (down != nil && *down > 0) || (up != nil && *up > 0)
+}
+
+// speedLimitRoutingChanged is true when Xray must be reloaded for the fwmark
+// rules to match the client. A rate-only edit keeps the same mark.
+func speedLimitRoutingChanged(before model.ClientRecord, after model.Client) bool {
+	beforeOn := before.Enable && (before.SpeedDown > 0 || before.SpeedUp > 0)
+	afterDown, afterUp := before.SpeedDown, before.SpeedUp
+	if after.SpeedDown != nil {
+		afterDown = *after.SpeedDown
+	}
+	if after.SpeedUp != nil {
+		afterUp = *after.SpeedUp
+	}
+	afterOn := after.Enable && (afterDown > 0 || afterUp > 0)
+	if beforeOn != afterOn {
+		return true
+	}
+	return afterOn && before.Email != after.Email
 }
 
 func validateClientEmail(email string) error {
@@ -197,6 +237,9 @@ func (s *ClientService) Create(inboundSvc *InboundService, payload *ClientCreate
 	if err := validateClientTrafficReset(client.TrafficReset, client.TrafficResetDay); err != nil {
 		return false, err
 	}
+	if err := validateClientSpeed(client.SpeedDown, client.SpeedUp); err != nil {
+		return false, err
+	}
 	normalizeClientTrafficReset(&client)
 	client.ClientHostRuleIds = model.NormalizeClientHostRuleIds(client.ClientHostRuleIds)
 	if len(payload.InboundIds) == 0 {
@@ -296,6 +339,9 @@ func (s *ClientService) Create(inboundSvc *InboundService, payload *ClientCreate
 			Update("client_host_rule_ids", model.EncodeClientHostRuleIds(client.ClientHostRuleIds)).Error; err != nil {
 			return needRestart, err
 		}
+	}
+	if client.Enable && speedPositive(client.SpeedDown, client.SpeedUp) {
+		needRestart = true
 	}
 	return needRestart, s.setClientLimitHwidByEmail(client.Email, payload.LimitHwid)
 }
@@ -652,11 +698,23 @@ func applyShadowsocksClientMethod(clients []any, settings map[string]any) {
 	}
 }
 
-func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model.Client, limitHwid int, inboundFilter ...int) (bool, error) {
+func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model.Client, limitHwid int, inboundFilter ...int) (needRestart bool, err error) {
+	var before model.ClientRecord
+	var haveBefore bool
+	defer func() {
+		if err != nil || !haveBefore {
+			return
+		}
+		if speedLimitRoutingChanged(before, updated) {
+			needRestart = true
+		}
+	}()
 	existing, err := s.GetByID(id)
 	if err != nil {
 		return false, err
 	}
+	before = *existing
+	haveBefore = true
 	inboundIds, err := s.GetInboundIdsForRecord(id)
 	if err != nil {
 		return false, err
@@ -705,6 +763,9 @@ func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model
 		return false, err
 	}
 	if err := validateClientTrafficReset(updated.TrafficReset, updated.TrafficResetDay); err != nil {
+		return false, err
+	}
+	if err := validateClientSpeed(updated.SpeedDown, updated.SpeedUp); err != nil {
 		return false, err
 	}
 	existingClientsByInbound := make(map[int][]model.Client, len(attachedIds))
@@ -884,6 +945,8 @@ func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model
 				"wg_keep_alive":        keepAliveLegacy,
 				"wg_keep_alive_range":  keepAliveRange,
 				"limit_ip":             merged.LimitIP,
+				"speed_down":           merged.SpeedDown,
+				"speed_up":             merged.SpeedUp,
 				"total_gb":             merged.TotalGB,
 				"expiry_time":          merged.ExpiryTime,
 				"tg_id":                merged.TgID,
@@ -1045,6 +1108,9 @@ func (s *ClientService) Delete(inboundSvc *InboundService, id int, keepTraffic b
 	}); err != nil {
 		withdrawClientTombstones(existing.Email)
 		return needRestart, err
+	}
+	if existing.Enable && (existing.SpeedDown > 0 || existing.SpeedUp > 0) {
+		needRestart = true
 	}
 	return needRestart, nil
 }
