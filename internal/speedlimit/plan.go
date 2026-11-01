@@ -14,13 +14,13 @@ const (
 	parentRate = "100000mbit"
 )
 
-// Limit is one client cap in Mbit/s (0 = unlimited). Download is server egress;
+// Limit is one client cap in bytes/s (0 = unlimited). Download is server egress;
 // upload is redirected onto ifbxui so every address shares one HTB class.
 type Limit struct {
-	ID       int
-	DownMbit int
-	UpMbit   int
-	IPs      []string
+	ID      int
+	DownBps int64
+	UpBps   int64
+	IPs     []string
 }
 
 type ipRules struct {
@@ -31,10 +31,10 @@ type ipRules struct {
 }
 
 type slot struct {
-	Minor    int
-	DownMbit int
-	UpMbit   int
-	IPs      map[string]ipRules
+	Minor   int
+	DownBps int64
+	UpBps   int64
+	IPs     map[string]ipRules
 }
 
 type handlePool struct {
@@ -131,7 +131,7 @@ func cloneState(prev *State) *State {
 		next.handles[key] = &handlePool{next: p.next, free: append([]uint32(nil), p.free...)}
 	}
 	for id, sl := range prev.Slots {
-		cp := &slot{Minor: sl.Minor, DownMbit: sl.DownMbit, UpMbit: sl.UpMbit, IPs: make(map[string]ipRules, len(sl.IPs))}
+		cp := &slot{Minor: sl.Minor, DownBps: sl.DownBps, UpBps: sl.UpBps, IPs: make(map[string]ipRules, len(sl.IPs))}
 		for ip, rules := range sl.IPs {
 			cp.IPs[ip] = rules
 		}
@@ -149,13 +149,13 @@ func Diff(iface string, prev *State, desired []Limit) ([][]string, *State) {
 		if lim.ID <= 0 {
 			continue
 		}
-		if lim.DownMbit < 0 {
-			lim.DownMbit = 0
+		if lim.DownBps < 0 {
+			lim.DownBps = 0
 		}
-		if lim.UpMbit < 0 {
-			lim.UpMbit = 0
+		if lim.UpBps < 0 {
+			lim.UpBps = 0
 		}
-		if lim.DownMbit == 0 && lim.UpMbit == 0 {
+		if lim.DownBps == 0 && lim.UpBps == 0 {
 			continue
 		}
 		lim.IPs = NormalizeIPs(lim.IPs)
@@ -206,7 +206,7 @@ func Diff(iface string, prev *State, desired []Limit) ([][]string, *State) {
 
 	needIFB := false
 	for _, sl := range next.Slots {
-		if sl.UpMbit > 0 {
+		if sl.UpBps > 0 {
 			needIFB = true
 			break
 		}
@@ -254,11 +254,11 @@ func (s *State) addSlot(iface string, lim Limit) (classAdds, filterAdds [][]stri
 	if minor == 0 {
 		return nil, nil, nil, false
 	}
-	sl = &slot{Minor: minor, DownMbit: lim.DownMbit, UpMbit: lim.UpMbit, IPs: map[string]ipRules{}}
-	if lim.DownMbit > 0 {
+	sl = &slot{Minor: minor, DownBps: lim.DownBps, UpBps: lim.UpBps, IPs: map[string]ipRules{}}
+	if lim.DownBps > 0 {
 		classAdds = append(classAdds, policeCmd(sl))
 	}
-	if lim.UpMbit > 0 {
+	if lim.UpBps > 0 {
 		classAdds = append(classAdds, classAdd(sl))
 	}
 	for _, ip := range lim.IPs {
@@ -268,8 +268,8 @@ func (s *State) addSlot(iface string, lim Limit) (classAdds, filterAdds [][]stri
 }
 
 func updateSlot(iface string, st *State, sl *slot, lim Limit) (filterDels, classDels, classAdds, filterAdds [][]string) {
-	if sl.DownMbit != lim.DownMbit {
-		if lim.DownMbit == 0 {
+	if sl.DownBps != lim.DownBps {
+		if lim.DownBps == 0 {
 			for _, ip := range sortedIPs(sl.IPs) {
 				rules := sl.IPs[ip]
 				if rules.DownHandle != 0 {
@@ -280,27 +280,27 @@ func updateSlot(iface string, st *State, sl *slot, lim Limit) (filterDels, class
 				}
 			}
 			classDels = append(classDels, delPolice(sl))
-			sl.DownMbit = 0
-		} else if sl.DownMbit == 0 {
-			sl.DownMbit = lim.DownMbit
+			sl.DownBps = 0
+		} else if sl.DownBps == 0 {
+			sl.DownBps = lim.DownBps
 			classAdds = append(classAdds, policeCmd(sl))
 		} else {
-			sl.DownMbit = lim.DownMbit
+			sl.DownBps = lim.DownBps
 			classAdds = append(classAdds, policeCmd(sl))
 		}
 	}
-	if sl.UpMbit != lim.UpMbit {
-		if lim.UpMbit == 0 {
+	if sl.UpBps != lim.UpBps {
+		if lim.UpBps == 0 {
 			for _, ip := range sortedIPs(sl.IPs) {
 				filterDels = append(filterDels, delUpload(iface, st, sl, ip)...)
 			}
 			classDels = append(classDels, delClass(sl))
-			sl.UpMbit = 0
-		} else if sl.UpMbit == 0 {
-			sl.UpMbit = lim.UpMbit
+			sl.UpBps = 0
+		} else if sl.UpBps == 0 {
+			sl.UpBps = lim.UpBps
 			classAdds = append(classAdds, classAdd(sl))
 		} else {
-			sl.UpMbit = lim.UpMbit
+			sl.UpBps = lim.UpBps
 			classAdds = append(classAdds, classChange(sl))
 		}
 	}
@@ -322,12 +322,12 @@ func updateSlot(iface string, st *State, sl *slot, lim Limit) (filterDels, class
 			filterAdds = append(filterAdds, st.bindIP(iface, sl, ip)...)
 			continue
 		}
-		if sl.DownMbit > 0 && rules.DownHandle == 0 {
+		if sl.DownBps > 0 && rules.DownHandle == 0 {
 			rules.DownHandle = st.pool(poolKey("down", rules.V6)).get()
 			filterAdds = append(filterAdds, addEgress(iface, sl, ip, rules))
 			sl.IPs[ip] = rules
 		}
-		if sl.UpMbit > 0 && rules.RedirectHandle == 0 {
+		if sl.UpBps > 0 && rules.RedirectHandle == 0 {
 			v6 := rules.V6
 			rules.RedirectHandle = st.pool(poolKey("redir", v6)).get()
 			rules.IFBHandle = st.pool(poolKey("ifb", v6)).get()
@@ -342,11 +342,11 @@ func (s *State) bindIP(iface string, sl *slot, ip string) [][]string {
 	v6 := isV6(ip)
 	rules := ipRules{V6: v6}
 	var cmds [][]string
-	if sl.DownMbit > 0 {
+	if sl.DownBps > 0 {
 		rules.DownHandle = s.pool(poolKey("down", v6)).get()
 		cmds = append(cmds, addEgress(iface, sl, ip, rules))
 	}
-	if sl.UpMbit > 0 {
+	if sl.UpBps > 0 {
 		rules.RedirectHandle = s.pool(poolKey("redir", v6)).get()
 		rules.IFBHandle = s.pool(poolKey("ifb", v6)).get()
 		cmds = append(cmds, addRedirect(iface, ip, rules), addIFB(sl, ip, rules))
@@ -365,10 +365,10 @@ func deleteSlotFilters(iface string, st *State, sl *slot) [][]string {
 
 func deleteSlotClasses(sl *slot) [][]string {
 	var cmds [][]string
-	if sl.UpMbit > 0 {
+	if sl.UpBps > 0 {
 		cmds = append(cmds, delClass(sl))
 	}
-	if sl.DownMbit > 0 {
+	if sl.DownBps > 0 {
 		cmds = append(cmds, delPolice(sl))
 	}
 	return cmds
@@ -447,19 +447,22 @@ func ipMask(ip string, v6 bool) string {
 	return ip + "/32"
 }
 
-func rateArg(mbit int) string {
-	return strconv.Itoa(mbit) + "mbit"
+func rateArg(bps int64) string {
+	if bps < 0 {
+		bps = 0
+	}
+	return strconv.FormatInt(bps, 10) + "Bps"
 }
 
-func burstArg(mbit int) string {
-	if mbit < 1 {
-		mbit = 1
+func burstArg(bps int64) string {
+	if bps < 1 {
+		bps = 1
 	}
-	kb := mbit * 125000 / 8 / 1024
+	kb := bps / 8 / 1024
 	if kb < 16 {
 		kb = 16
 	}
-	return strconv.Itoa(kb) + "kb"
+	return strconv.FormatInt(kb, 10) + "kb"
 }
 
 func policeIndex(minor int) string {
@@ -467,7 +470,7 @@ func policeIndex(minor int) string {
 }
 
 func policeCmd(sl *slot) []string {
-	return []string{"tc", "action", "replace", "police", "rate", rateArg(sl.DownMbit), "burst", burstArg(sl.DownMbit), "conform-exceed", "drop", "index", policeIndex(sl.Minor)}
+	return []string{"tc", "action", "replace", "police", "rate", rateArg(sl.DownBps), "burst", burstArg(sl.DownBps), "conform-exceed", "drop", "index", policeIndex(sl.Minor)}
 }
 
 func delPolice(sl *slot) []string {
@@ -475,7 +478,7 @@ func delPolice(sl *slot) []string {
 }
 
 func classAdd(sl *slot) []string {
-	return []string{"tc", "class", "add", "dev", ifbName, "parent", ifbRoot + ":1", "classid", classID(sl.Minor), "htb", "rate", rateArg(sl.UpMbit), "ceil", rateArg(sl.UpMbit)}
+	return []string{"tc", "class", "add", "dev", ifbName, "parent", ifbRoot + ":1", "classid", classID(sl.Minor), "htb", "rate", rateArg(sl.UpBps), "ceil", rateArg(sl.UpBps)}
 }
 
 func classChange(sl *slot) []string {

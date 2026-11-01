@@ -15,7 +15,7 @@ func joinCmds(cmds [][]string) string {
 
 func TestDiffShapesBothFamiliesWithoutHostRootQdisc(t *testing.T) {
 	cmds, next := Diff("eth0", nil, []Limit{{
-		ID: 7, DownMbit: 10, UpMbit: 5,
+		ID: 7, DownBps: 1_250_000, UpBps: 625_000,
 		IPs: []string{"203.0.113.5", "2001:db8::1", "203.0.113.5"},
 	}})
 	got := joinCmds(cmds)
@@ -24,8 +24,8 @@ func TestDiffShapesBothFamiliesWithoutHostRootQdisc(t *testing.T) {
 		"ip link add ifbxui type ifb",
 		"tc qdisc add dev ifbxui root handle 7e12: htb default 1",
 		"tc class add dev ifbxui parent 7e12: classid 7e12:1 htb rate 100000mbit ceil 100000mbit",
-		"tc action replace police rate 10mbit burst 152kb conform-exceed drop index 2020933634",
-		"tc class add dev ifbxui parent 7e12:1 classid 7e12:2 htb rate 5mbit ceil 5mbit",
+		"tc action replace police rate 1250000Bps burst 152kb conform-exceed drop index 2020933634",
+		"tc class add dev ifbxui parent 7e12:1 classid 7e12:2 htb rate 625000Bps ceil 625000Bps",
 		"tc filter add dev eth0 egress protocol ipv6 pref 2 handle 0x1 flower dst_ip 2001:db8::1/128 action police index 2020933634",
 		"tc filter add dev eth0 ingress protocol ipv6 pref 2 handle 0x1 flower src_ip 2001:db8::1/128 action mirred egress redirect dev ifbxui",
 		"tc filter add dev ifbxui parent 7e12: protocol ipv6 prio 2 handle 0x1 flower src_ip 2001:db8::1/128 classid 7e12:2",
@@ -51,7 +51,7 @@ func TestDiffShapesBothFamiliesWithoutHostRootQdisc(t *testing.T) {
 	}
 
 	again, _ := Diff("eth0", next, []Limit{{
-		ID: 7, DownMbit: 10, UpMbit: 5, IPs: []string{"203.0.113.5", "2001:db8::1"},
+		ID: 7, DownBps: 1_250_000, UpBps: 625_000, IPs: []string{"203.0.113.5", "2001:db8::1"},
 	}})
 	if len(again) != 0 {
 		t.Fatalf("unchanged desired emitted commands: %s", joinCmds(again))
@@ -59,8 +59,8 @@ func TestDiffShapesBothFamiliesWithoutHostRootQdisc(t *testing.T) {
 }
 
 func TestDiffRecyclesFilterHandleAndClearsUnlimited(t *testing.T) {
-	_, st := Diff("eth0", nil, []Limit{{ID: 4, DownMbit: 8, UpMbit: 0, IPs: []string{"198.51.100.10"}}})
-	cmds, st := Diff("eth0", st, []Limit{{ID: 4, DownMbit: 8, UpMbit: 0, IPs: []string{"198.51.100.11"}}})
+	_, st := Diff("eth0", nil, []Limit{{ID: 4, DownBps: 8, UpBps: 0, IPs: []string{"198.51.100.10"}}})
+	cmds, st := Diff("eth0", st, []Limit{{ID: 4, DownBps: 8, UpBps: 0, IPs: []string{"198.51.100.11"}}})
 	got := joinCmds(cmds)
 	if !strings.Contains(got, "filter del dev eth0 egress protocol ip pref 1 handle 0x1 flower") {
 		t.Fatalf("old address was not removed:\n%s", got)
@@ -83,7 +83,7 @@ func TestDiffRecyclesFilterHandleAndClearsUnlimited(t *testing.T) {
 }
 
 func TestDiffDisabledClientDropsRules(t *testing.T) {
-	_, st := Diff("eth0", nil, []Limit{{ID: 2, DownMbit: 1, UpMbit: 1, IPs: []string{"203.0.113.8"}}})
+	_, st := Diff("eth0", nil, []Limit{{ID: 2, DownBps: 1, UpBps: 1, IPs: []string{"203.0.113.8"}}})
 	cmds, _ := Diff("eth0", st, nil)
 	got := joinCmds(cmds)
 	if !strings.Contains(got, "tc qdisc del dev ifbxui root") || !strings.Contains(got, "ip link del ifbxui") {

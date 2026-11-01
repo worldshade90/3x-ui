@@ -1832,13 +1832,20 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "string"
       },
       "speedDown": {
-        "description": "Download cap, Mbit/s. 0 = unlimited.",
+        "description": "Download cap in bytes/s. 0 = unlimited. 1 KB/s = 1024 B/s, 1 MB/s = 1024 KB/s.",
         "example": 0,
+        "format": "int64",
         "type": "integer"
       },
+      "speedUnit": {
+        "description": "Display unit: kb or mb.",
+        "example": "kb",
+        "type": "string"
+      },
       "speedUp": {
-        "description": "Upload cap, Mbit/s. 0 = unlimited.",
+        "description": "Upload cap in bytes/s. Legacy Mbit/s was 125000 B/s, so 1 MB/s ≈ 8.389 Mbit/s.",
         "example": 0,
+        "format": "int64",
         "type": "integer"
       },
       "subId": {
@@ -1889,6 +1896,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "resetWeekday",
       "security",
       "speedDown",
+      "speedUnit",
       "speedUp",
       "subId",
       "tgId",
@@ -2069,13 +2077,19 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "string"
       },
       "speedDown": {
-        "description": "Download cap, Mbit/s. 0 = unlimited.",
+        "description": "Download cap, bytes/s. 0 = unlimited.",
         "example": 0,
+        "format": "int64",
         "type": "integer"
       },
+      "speedUnit": {
+        "example": "kb",
+        "type": "string"
+      },
       "speedUp": {
-        "description": "Upload cap, Mbit/s. 0 = unlimited.",
+        "description": "Upload cap, bytes/s. 0 = unlimited.",
         "example": 0,
+        "format": "int64",
         "type": "integer"
       },
       "subId": {
@@ -2131,6 +2145,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "secret",
       "security",
       "speedDown",
+      "speedUnit",
       "speedUp",
       "subId",
       "tgId",

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Modal, Table, Typography } from 'antd';
+import { Modal, Select, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { z } from 'zod';
 
 import { Sparkline } from '@/components/viz';
+import { formatSpeed, type SpeedUnit } from '@/lib/clients/speedUnit';
 import {
   ClientSpeedDaySchema,
   ClientSpeedSeriesSchema,
@@ -16,12 +17,6 @@ import { HttpUtil } from '@/utils';
 
 function utcToday(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function formatKBs(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '0';
-  if (value >= 100) return String(Math.round(value));
-  return String(Math.round(value * 10) / 10);
 }
 
 function labelFor(sec: number): string {
@@ -57,6 +52,7 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
   const { t } = useTranslation();
   const [day, setDay] = useState(utcToday);
   const [email, setEmail] = useState<string | null>(null);
+  const [unit, setUnit] = useState<SpeedUnit>('kb');
 
   const days = useQuery({
     queryKey: ['clients', 'speedStats', day],
@@ -71,27 +67,28 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
 
   const rows = days.data ?? [];
   const points = series.data?.points ?? [];
+  const unitLabel = unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb');
   const columns: ColumnsType<ClientSpeedDay> = [
     { title: t('pages.clients.email'), dataIndex: 'email', key: 'email' },
     {
-      title: `${t('pages.clients.speedDownload')} ${t('pages.clients.speedMax')}`,
+      title: `${t('pages.clients.speedDownload')} ${t('pages.clients.speedMax')}, ${unitLabel}`,
       dataIndex: 'maxDownKBs',
-      render: (value: number) => formatKBs(value),
+      render: (value: number) => formatSpeed(value, unit),
     },
     {
-      title: `${t('pages.clients.speedDownload')} ${t('pages.clients.speedAvg')}`,
+      title: `${t('pages.clients.speedDownload')} ${t('pages.clients.speedAvg')}, ${unitLabel}`,
       dataIndex: 'avgDownKBs',
-      render: (value: number) => formatKBs(value),
+      render: (value: number) => formatSpeed(value, unit),
     },
     {
-      title: `${t('pages.clients.speedUpload')} ${t('pages.clients.speedMax')}`,
+      title: `${t('pages.clients.speedUpload')} ${t('pages.clients.speedMax')}, ${unitLabel}`,
       dataIndex: 'maxUpKBs',
-      render: (value: number) => formatKBs(value),
+      render: (value: number) => formatSpeed(value, unit),
     },
     {
-      title: `${t('pages.clients.speedUpload')} ${t('pages.clients.speedAvg')}`,
+      title: `${t('pages.clients.speedUpload')} ${t('pages.clients.speedAvg')}, ${unitLabel}`,
       dataIndex: 'avgUpKBs',
-      render: (value: number) => formatKBs(value),
+      render: (value: number) => formatSpeed(value, unit),
     },
   ];
 
@@ -115,6 +112,16 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
             setEmail(null);
           }}
         />
+        <Select<SpeedUnit>
+          aria-label={t('pages.clients.speedUnitKb')}
+          value={unit}
+          popupMatchSelectWidth={false}
+          options={[
+            { value: 'kb', label: t('pages.clients.speedUnitKb') },
+            { value: 'mb', label: t('pages.clients.speedUnitMb') },
+          ]}
+          onChange={setUnit}
+        />
       </div>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {t('pages.clients.speedUtcNote')}
@@ -137,11 +144,11 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
       </Typography.Title>
       {email && points.length > 0 ? (
         <Sparkline
-          data={points.map((point) => point.downKBs)}
-          data2={points.map((point) => point.upKBs)}
+          data={points.map((point) => (unit === 'mb' ? point.downKBs / 1024 : point.downKBs))}
+          data2={points.map((point) => (unit === 'mb' ? point.upKBs / 1024 : point.upKBs))}
           labels={points.map((point) => labelFor(point.sec))}
-          name1={t('pages.clients.speedDownload')}
-          name2={t('pages.clients.speedUpload')}
+          name1={`${t('pages.clients.speedDownload')} (${unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb')})`}
+          name2={`${t('pages.clients.speedUpload')} (${unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb')})`}
           height={220}
           maxPoints={288}
           showAxes
@@ -149,7 +156,7 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
           showGrid
           valueMin={0}
           valueMax={null}
-          yFormatter={(value) => formatKBs(value)}
+          yFormatter={(value) => formatSpeed(value, 'kb')}
         />
       ) : (
         <Typography.Text type="secondary">{t('pages.clients.speedPickClient')}</Typography.Text>

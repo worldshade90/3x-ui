@@ -26,7 +26,7 @@ func TestSyncRefusesForeignClsact(t *testing.T) {
 	m.pinIface = true
 	m.iface = "eth0"
 	if err := m.Sync(context.Background(), []Limit{{
-		ID: 1, DownMbit: 1, IPs: []string{"203.0.113.1"},
+		ID: 1, DownBps: 1, IPs: []string{"203.0.113.1"},
 	}}); err != nil {
 		t.Fatal(err)
 	}

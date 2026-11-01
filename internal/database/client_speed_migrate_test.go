@@ -73,3 +73,41 @@ func TestMigrateClientSpeedPreservesExistingRow(t *testing.T) {
 		t.Fatalf("backfill changed the row: %+v", speeds)
 	}
 }
+
+func TestMigrateSpeedMbitToBytesOnce(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XUI_DB_FOLDER", dir)
+	path := filepath.Join(dir, "x-ui.db")
+	if err := InitDB(path); err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	t.Cleanup(func() { _ = CloseDB() })
+
+	if err := GetDB().Where("seeder_name = ?", "SpeedMbitToBytes").Delete(&model.HistoryOfSeeders{}).Error; err != nil {
+		t.Fatalf("clear seeder: %v", err)
+	}
+	rec := &model.ClientRecord{Email: "mbit@x", SpeedDown: 10, SpeedUp: 8, Comment: "kept", TotalGB: 3}
+	if err := GetDB().Create(rec).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := migrateClientSpeedMbitToBytes(); err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	var got model.ClientRecord
+	if err := GetDB().Where("email = ?", "mbit@x").Take(&got).Error; err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.SpeedDown != 10*model.SpeedBytesPerMbit || got.SpeedUp != 8*model.SpeedBytesPerMbit || got.Comment != "kept" || got.TotalGB != 3 {
+		t.Fatalf("converted row = %+v", got)
+	}
+	if err := migrateClientSpeedMbitToBytes(); err != nil {
+		t.Fatalf("second convert: %v", err)
+	}
+	var again model.ClientRecord
+	if err := GetDB().Where("email = ?", "mbit@x").Take(&again).Error; err != nil {
+		t.Fatalf("reread: %v", err)
+	}
+	if again.SpeedDown != got.SpeedDown || again.SpeedUp != got.SpeedUp {
+		t.Fatalf("seeder ran twice: %+v", again)
+	}
+}

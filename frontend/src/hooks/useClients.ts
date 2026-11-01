@@ -720,6 +720,7 @@ export function useClients(options: UseClientsOptions = {}) {
         limitIp: base.limitIp || 0,
         speedDown: base.speedDown || 0,
         speedUp: base.speedUp || 0,
+        speedUnit: base.speedUnit === 'mb' ? 'mb' : 'kb',
         limitHwid: base.limitHwid || 0,
         tgId: Number(base.tgId) || 0,
         reset: Number(base.reset) || 0,

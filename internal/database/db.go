@@ -219,6 +219,9 @@ func initModels() error {
 	if err := migrateClientSpeedColumns(); err != nil {
 		return err
 	}
+	if err := migrateClientSpeedMbitToBytes(); err != nil {
+		return err
+	}
 	if IsPostgres() {
 		if err := resyncPostgresSequences(db, models); err != nil {
 			log.Printf("Error resyncing postgres sequences: %v", err)
@@ -430,7 +433,38 @@ func migrateClientSpeedColumns() error {
 			return err
 		}
 	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_unit") {
+		if err := db.Exec("UPDATE clients SET speed_unit = 'kb' WHERE speed_unit IS NULL OR speed_unit = ''").Error; err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// migrateClientSpeedMbitToBytes rewrites the first speed-limit release, which
+// stored tc mbit (10^6 bit/s). 1 Mbit/s = 125000 B/s, and the seeder runs once.
+func migrateClientSpeedMbitToBytes() error {
+	const seederName = "SpeedMbitToBytes"
+	if !db.Migrator().HasTable(&model.ClientRecord{}) || !db.Migrator().HasColumn(&model.ClientRecord{}, "speed_down") {
+		return nil
+	}
+	var count int64
+	if err := db.Model(&model.HistoryOfSeeders{}).Where("seeder_name = ?", seederName).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	scale := model.SpeedBytesPerMbit
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("UPDATE clients SET speed_down = speed_down * ? WHERE speed_down > 0", scale).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE clients SET speed_up = speed_up * ? WHERE speed_up > 0", scale).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.HistoryOfSeeders{SeederName: seederName}).Error
+	})
 }
 
 func migrateClientEmailLowerIndex() error {

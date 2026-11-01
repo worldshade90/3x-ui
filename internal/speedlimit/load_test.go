@@ -38,10 +38,10 @@ func TestLoadActiveSkipsDisabledAndUnlimited(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %#v", got)
 	}
-	if got[0].DownMbit != 10 || got[0].UpMbit != 2 || len(got[0].IPs) != 2 || got[0].IPs[0] != "203.0.113.5" {
+	if got[0].DownBps != 10 || got[0].UpBps != 2 || len(got[0].IPs) != 2 || got[0].IPs[0] != "203.0.113.5" {
 		t.Fatalf("shaped = %#v", got[0])
 	}
-	if got[1].DownMbit != 0 || got[1].UpMbit != 4 || len(got[1].IPs) != 1 {
+	if got[1].DownBps != 0 || got[1].UpBps != 4 || len(got[1].IPs) != 1 {
 		t.Fatalf("up-only = %#v", got[1])
 	}
 }

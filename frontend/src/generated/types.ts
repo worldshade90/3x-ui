@@ -443,6 +443,7 @@ export interface Client {
   secret?: string;
   security: string;
   speedDown: number;
+  speedUnit: string;
   speedUp: number;
   subId: string;
   tgId: number;
@@ -498,6 +499,7 @@ export interface ClientRecord {
   secret: string;
   security: string;
   speedDown: number;
+  speedUnit: string;
   speedUp: number;
   subId: string;
   tgId: number;

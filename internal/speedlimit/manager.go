@@ -306,7 +306,7 @@ func LoadActive(observed map[string][]string) ([]Limit, error) {
 		if up < 0 {
 			up = 0
 		}
-		out = append(out, Limit{ID: row.Id, DownMbit: down, UpMbit: up, IPs: observed[row.Email]})
+		out = append(out, Limit{ID: row.Id, DownBps: down, UpBps: up, IPs: observed[row.Email]})
 	}
 	return out, nil
 }

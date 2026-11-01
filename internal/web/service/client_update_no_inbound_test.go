@@ -31,10 +31,14 @@ func TestUpdate_ClearsSpeedLimit_NoInbound(t *testing.T) {
 }
 
 func TestApplyClientRecordMerge_Speed(t *testing.T) {
-	row := &model.ClientRecord{SpeedDown: 10, SpeedUp: 4}
+	row := &model.ClientRecord{SpeedDown: 10, SpeedUp: 4, SpeedUnit: "mb"}
 	applyClientRecordMerge(row, &model.ClientRecord{SpeedDown: 0, SpeedUp: 8})
-	if row.SpeedDown != 0 || row.SpeedUp != 8 {
-		t.Fatalf("got down=%d up=%d", row.SpeedDown, row.SpeedUp)
+	if row.SpeedDown != 0 || row.SpeedUp != 8 || row.SpeedUnit != "mb" {
+		t.Fatalf("got down=%d up=%d unit=%s", row.SpeedDown, row.SpeedUp, row.SpeedUnit)
+	}
+	applyClientRecordMerge(row, &model.ClientRecord{SpeedUnit: "kb"})
+	if row.SpeedUnit != "kb" {
+		t.Fatalf("unit = %s", row.SpeedUnit)
 	}
 	applyClientRecordMerge(row, &model.ClientRecord{SpeedDown: -3, SpeedUp: -1})
 	if row.SpeedDown != 0 || row.SpeedUp != 0 {
@@ -77,13 +81,13 @@ func TestUpdate_PersistsFields_NoInbound(t *testing.T) {
 			name:     "speedDown",
 			mutate:   func(c *model.Client) { c.SpeedDown = 15 },
 			readBack: func(rec *model.ClientRecord) any { return rec.SpeedDown },
-			want:     15,
+			want:     int64(15),
 		},
 		{
 			name:     "speedUp",
 			mutate:   func(c *model.Client) { c.SpeedUp = 4 },
 			readBack: func(rec *model.ClientRecord) any { return rec.SpeedUp },
-			want:     4,
+			want:     int64(4),
 		},
 		{
 			name:     "tgId",
