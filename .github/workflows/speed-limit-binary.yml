@@ -1,0 +1,71 @@
+# Builds one linux/amd64 panel binary with the Vite UI embedded.
+# make dist-stub does not do this: //go:embed all:dist freezes internal/web/dist
+# at compile time, and the stub directory has no JS bundle.
+name: Speed-limit linux-amd64 binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - cursor/client-speed-limit-b2d8
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend into internal/web/dist
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          test -f ../internal/web/dist/index.html
+
+      - name: Build panel binary
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o x-ui .
+          tar -czf x-ui-linux-amd64.tar.gz x-ui
+          sha256sum x-ui-linux-amd64.tar.gz > x-ui-linux-amd64.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: x-ui-linux-amd64
+          path: |
+            x-ui-linux-amd64.tar.gz
+            x-ui-linux-amd64.tar.gz.sha256
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=speed-limit-preview
+          notes="linux-amd64 panel binary with the Vite UI embedded. Replace only /usr/local/x-ui/x-ui and keep /etc/x-ui/x-ui.db. Commit ${GITHUB_SHA}."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" x-ui-linux-amd64.tar.gz x-ui-linux-amd64.tar.gz.sha256 --clobber
+            gh release edit "$tag" --target "${GITHUB_REF_NAME}" --prerelease \
+              --title "Speed limit preview (linux-amd64)" --notes "$notes"
+          else
+            gh release create "$tag" x-ui-linux-amd64.tar.gz x-ui-linux-amd64.tar.gz.sha256 \
+              --prerelease --target "${GITHUB_REF_NAME}" \
+              --title "Speed limit preview (linux-amd64)" --notes "$notes"
+          fi
