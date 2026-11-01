@@ -1012,13 +1012,12 @@ export default function ClientFormModal({
                             label={t('pages.clients.speedDown')}
                             tooltip={t('pages.clients.speedDownDesc')}
                           >
-                            <Space.Compact style={{ display: 'flex' }}>
+                            <Space.Compact className="speed-limit-compact">
                               <InputNumber
                                 id={`${uid}-speed-down`}
                                 min={0}
                                 step={speedUnit === 'mb' ? 0.1 : 1}
                                 value={speedDown}
-                                style={{ flex: 1 }}
                                 onChange={(value) =>
                                   methods.setValue('speedDown', Number(value) || 0)
                                 }
@@ -1042,13 +1041,12 @@ export default function ClientFormModal({
                             label={t('pages.clients.speedUp')}
                             tooltip={t('pages.clients.speedUpDesc')}
                           >
-                            <Space.Compact style={{ display: 'flex' }}>
+                            <Space.Compact className="speed-limit-compact">
                               <InputNumber
                                 id={`${uid}-speed-up`}
                                 min={0}
                                 step={speedUnit === 'mb' ? 0.1 : 1}
                                 value={speedUp}
-                                style={{ flex: 1 }}
                                 onChange={(value) =>
                                   methods.setValue('speedUp', Number(value) || 0)
                                 }

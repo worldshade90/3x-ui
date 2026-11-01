@@ -3,3 +3,18 @@
 .client-form-modal .ant-tabs-content > .ant-form-item:last-child {
   margin-bottom: 0;
 }
+
+/* Form Select is width:100%. Inside the compact that ate the number field. */
+.client-form-modal .speed-limit-compact {
+  display: flex;
+  width: 100%;
+}
+.client-form-modal .speed-limit-compact .ant-input-number {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.client-form-modal .speed-limit-compact .ant-select {
+  flex: 0 0 90px;
+  width: 90px;
+}
