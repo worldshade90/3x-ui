@@ -87,6 +87,7 @@ func allModels() []any {
 		&model.OutboundSubscription{},
 		&model.SubBalancer{},
 		&model.TuicTrafficReceipt{},
+		&model.ClientSpeedDay{},
 	}
 }
 
@@ -213,6 +214,9 @@ func initModels() error {
 		return err
 	}
 	if err := migrateClientEmailLowerIndex(); err != nil {
+		return err
+	}
+	if err := migrateClientSpeedColumns(); err != nil {
 		return err
 	}
 	if IsPostgres() {
@@ -410,6 +414,25 @@ func migrateSyncOrphanColumns() error {
 
 // The client identity checks match emails case-insensitively; without an
 // expression index (which no GORM struct tag can declare) they seq-scan.
+// AutoMigrate adds speed_down/speed_up. Older SQLite ALTER TABLE leaves them
+// NULL, and a NULL scan into int fails the whole clients query.
+func migrateClientSpeedColumns() error {
+	if !db.Migrator().HasTable(&model.ClientRecord{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_down") {
+		if err := db.Exec("UPDATE clients SET speed_down = 0 WHERE speed_down IS NULL").Error; err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_up") {
+		if err := db.Exec("UPDATE clients SET speed_up = 0 WHERE speed_up IS NULL").Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func migrateClientEmailLowerIndex() error {
 	if db.Migrator().HasIndex(&model.ClientRecord{}, "idx_clients_email_lower") {
 		return nil

@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/speedlimit"
+	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/websocket"
@@ -53,6 +56,8 @@ func NewClientController(g *gin.RouterGroup) *ClientController {
 func (a *ClientController) initRouter(g *gin.RouterGroup) {
 	g.GET("/list", a.list)
 	g.GET("/list/paged", a.listPaged)
+	g.GET("/speedStats", a.speedStats)
+	g.GET("/speedStats/:email", a.speedStatsClient)
 	g.GET("/get/:email", a.get)
 	g.GET("/get/subId/:subId", a.getBySubId)
 	g.GET("/get/tgId/:tgId", a.getByTgId)
@@ -753,4 +758,39 @@ func (a *ClientController) bulkResetTraffic(c *gin.Context) {
 	jsonObj(c, gin.H{"affected": affected}, nil)
 	a.xrayService.SetToNeedRestart()
 	notifyClientsChanged()
+}
+
+func speedStatsDay(c *gin.Context) (string, bool) {
+	day := strings.TrimSpace(c.Query("day"))
+	if day == "" {
+		return speedlimit.TodayUTC(time.Now()), true
+	}
+	if !speedlimit.ValidDay(day) {
+		return "", false
+	}
+	return day, true
+}
+
+func (a *ClientController) speedStats(c *gin.Context) {
+	day, ok := speedStatsDay(c)
+	if !ok {
+		jsonMsg(c, "invalid day", common.NewError("day must be YYYY-MM-DD"))
+		return
+	}
+	rows, err := speedlimit.ListDay(day)
+	if rows == nil && err == nil {
+		rows = []speedlimit.DayStat{}
+	}
+	jsonObj(c, rows, err)
+}
+
+func (a *ClientController) speedStatsClient(c *gin.Context) {
+	day, ok := speedStatsDay(c)
+	if !ok {
+		jsonMsg(c, "invalid day", common.NewError("day must be YYYY-MM-DD"))
+		return
+	}
+	email := c.Param("email")
+	points, err := speedlimit.DaySeries(email, day)
+	jsonObj(c, gin.H{"email": email, "day": day, "points": points}, err)
 }

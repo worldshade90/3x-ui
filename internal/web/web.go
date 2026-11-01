@@ -23,6 +23,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/eventbus"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/mtproto"
+	"github.com/mhsanaei/3x-ui/v3/internal/speedlimit"
 	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/cronspec"
@@ -307,6 +308,7 @@ const (
 	cadenceAmneziaWG     = "@every 10s"
 	cadenceTuic          = "@every 10s"
 	cadenceClientIPScan  = "@every 10s"
+	cadenceSpeedLimit    = "@every 15s"
 	cadenceNodeHeartbeat = "@every 5s"
 	cadenceNodeTraffic   = "@every 5s"
 	cadenceOutboundSub   = "@every 5m"
@@ -358,6 +360,11 @@ func (s *Server) startTask(restartXray bool, loc *time.Location) {
 
 	// check client ips from log file every 10 sec
 	_, _ = s.cron.AddJob(cadenceClientIPScan, job.NewCheckClientIpJob())
+
+	speedlimit.Allow()
+	speedJob := job.NewSpeedLimitJob()
+	_, _ = s.cron.AddJob(cadenceSpeedLimit, speedJob)
+	go speedJob.Run()
 
 	_, _ = s.cron.AddJob(cadenceNodeHeartbeat, job.NewNodeHeartbeatJob())
 
@@ -796,6 +803,7 @@ func (s *Server) stop(stopXray bool, stopTgBot bool) error {
 	if s.cron != nil {
 		<-s.cron.Stop().Done()
 	}
+	speedlimit.Cleanup()
 	if stopXray {
 		tuic.GetManager().StopAll()
 		if err := job.NewTuicJob().FlushStoppedTraffic(); err != nil {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/speedlimit"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/outbound"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/websocket"
@@ -39,6 +40,17 @@ const clientStatsSnapshotMaxClients = 5000
 // row and a zero row render identically. Broadcasting just the movers keeps that
 // frame from growing with the client count — at 5k clients it was carrying about
 // a megabyte of zeros every five seconds.
+func speedSamples(clientTraffics []*xray.ClientTraffic) []speedlimit.Sample {
+	out := make([]speedlimit.Sample, 0, len(clientTraffics))
+	for _, ct := range clientTraffics {
+		if ct == nil || ct.Email == "" {
+			continue
+		}
+		out = append(out, speedlimit.Sample{Email: ct.Email, DownBytes: ct.Down, UpBytes: ct.Up})
+	}
+	return out
+}
+
 func splitMovedClientTraffics(clientTraffics []*xray.ClientTraffic) ([]*xray.ClientTraffic, []string, map[string]bool) {
 	moved := make([]*xray.ClientTraffic, 0, len(clientTraffics))
 	emails := make([]string, 0, len(clientTraffics))
@@ -79,6 +91,7 @@ func (j *XrayTrafficJob) Run() {
 	if err != nil {
 		return
 	}
+	speedlimit.Observe(time.Now(), speedSamples(clientTraffics))
 	needRestart0, clientsDisabled, err := j.inboundService.AddTraffic(traffics, clientTraffics)
 	if err != nil {
 		logger.Warning("add inbound traffic failed:", err)

@@ -994,6 +994,46 @@ export const sections: readonly Section[] = [
     endpoints: [
       {
         method: 'GET',
+        path: '/panel/api/clients/speedStats',
+        summary:
+          'Daily per-client speed summary for one UTC day. max* is the highest sample, avg* averages only samples that carried traffic in that direction. Speeds are KB/s. day defaults to today UTC.',
+        params: [
+          {
+            name: 'day',
+            in: 'query',
+            type: 'string',
+            desc: 'UTC day, YYYY-MM-DD. Defaults to today.',
+            optional: true,
+          },
+        ],
+        response:
+          '{\n  "success": true,\n  "obj": [\n    {\n      "email": "alice@example.com",\n      "maxDownKBs": 1200.5,\n      "maxUpKBs": 80,\n      "avgDownKBs": 400.25,\n      "avgUpKBs": 20,\n      "samplesDown": 12,\n      "samplesUp": 4\n    }\n  ]\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/clients/speedStats/:email',
+        summary:
+          '5-minute speed buckets for one client on one UTC day (288 points, zeros included). Speeds are KB/s. sec is seconds from 00:00 UTC.',
+        params: [
+          {
+            name: 'email',
+            in: 'path',
+            type: 'string',
+            desc: 'Client email.',
+          },
+          {
+            name: 'day',
+            in: 'query',
+            type: 'string',
+            desc: 'UTC day, YYYY-MM-DD. Defaults to today.',
+            optional: true,
+          },
+        ],
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "email": "alice@example.com",\n    "day": "2026-11-01",\n    "points": [{ "sec": 0, "downKBs": 0, "upKBs": 0 }]\n  }\n}',
+      },
+      {
+        method: 'GET',
         path: '/panel/api/clients/list',
         summary:
           'List every client with its attached inbound IDs and traffic record. The reverse field, if set, is returned as a nested JSON object (legacy JSON-encoded-string form is still accepted on write).',

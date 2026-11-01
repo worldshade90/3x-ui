@@ -956,19 +956,21 @@ type Client struct {
 	ForwardedPorts      string           `json:"forwardedPorts,omitempty"` // AmneziaWG per-client port-forwarding spec, e.g. "80,443,8000-8100"
 	Secret              string           `json:"secret,omitempty" example:"ee1234567890abcdef1234567890abcd7777772e636c6f7564666c6172652e636f6d"`
 	AdTag               string           `json:"adTag,omitempty" example:"0123456789abcdef0123456789abcdef"`
-	Email               string           `json:"email"`                            // Client email identifier
-	LimitIP             int              `json:"limitIp"`                          // IP limit for this client
-	TotalGB             int64            `json:"totalGB" form:"totalGB"`           // Total traffic limit in GB
-	ExpiryTime          int64            `json:"expiryTime" form:"expiryTime"`     // Expiration timestamp
-	Enable              bool             `json:"enable" form:"enable"`             // Whether the client is enabled
-	TgID                int64            `json:"tgId" form:"tgId"`                 // Telegram user ID for notifications
-	SubID               string           `json:"subId" form:"subId"`               // Subscription identifier
-	Group               string           `json:"group,omitempty" form:"group"`     // Logical grouping label
-	Comment             string           `json:"comment" form:"comment"`           // Client comment
-	Reset               int              `json:"reset" form:"reset"`               // Reset period in days
-	ResetDay            int              `json:"resetDay" form:"resetDay"`         // Calendar renewal day 1-31, 0 disables monthly renewal
-	ResetWeekday        int              `json:"resetWeekday" form:"resetWeekday"` // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
-	ResetMax            int              `json:"resetMax" form:"resetMax"`         // Max auto-renew count, 0 = unlimited
+	Email               string           `json:"email"`                                  // Client email identifier
+	LimitIP             int              `json:"limitIp"`                                // IP limit for this client
+	SpeedDown           int              `json:"speedDown" form:"speedDown" example:"0"` // Download cap, Mbit/s. 0 = unlimited.
+	SpeedUp             int              `json:"speedUp" form:"speedUp" example:"0"`     // Upload cap, Mbit/s. 0 = unlimited.
+	TotalGB             int64            `json:"totalGB" form:"totalGB"`                 // Total traffic limit in GB
+	ExpiryTime          int64            `json:"expiryTime" form:"expiryTime"`           // Expiration timestamp
+	Enable              bool             `json:"enable" form:"enable"`                   // Whether the client is enabled
+	TgID                int64            `json:"tgId" form:"tgId"`                       // Telegram user ID for notifications
+	SubID               string           `json:"subId" form:"subId"`                     // Subscription identifier
+	Group               string           `json:"group,omitempty" form:"group"`           // Logical grouping label
+	Comment             string           `json:"comment" form:"comment"`                 // Client comment
+	Reset               int              `json:"reset" form:"reset"`                     // Reset period in days
+	ResetDay            int              `json:"resetDay" form:"resetDay"`               // Calendar renewal day 1-31, 0 disables monthly renewal
+	ResetWeekday        int              `json:"resetWeekday" form:"resetWeekday"`       // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
+	ResetMax            int              `json:"resetMax" form:"resetMax"`               // Max auto-renew count, 0 = unlimited
 	// Per-client traffic reset cycle, independent of the inbound's own (#5497).
 	TrafficReset    string `json:"trafficReset,omitempty" form:"trafficReset" validate:"omitempty,oneof=never hourly daily weekly monthly"`
 	TrafficResetDay int    `json:"trafficResetDay,omitempty" form:"trafficResetDay" validate:"omitempty,gte=1,lte=31"`
@@ -998,6 +1000,8 @@ type ClientRecord struct {
 	Secret            string         `json:"secret" gorm:"column:secret"`
 	AdTag             string         `json:"adTag" gorm:"column:ad_tag;default:''"`
 	LimitIP           int            `json:"limitIp" gorm:"column:limit_ip"`
+	SpeedDown         int            `json:"speedDown" gorm:"column:speed_down;default:0" example:"0"` // Download cap, Mbit/s. 0 = unlimited.
+	SpeedUp           int            `json:"speedUp" gorm:"column:speed_up;default:0" example:"0"`     // Upload cap, Mbit/s. 0 = unlimited.
 	LimitHwid         int            `json:"limitHwid" gorm:"column:limit_hwid;default:0"`
 	TotalGB           int64          `json:"totalGB" gorm:"column:total_gb"`
 	ExpiryTime        int64          `json:"expiryTime" gorm:"column:expiry_time"`
@@ -1071,6 +1075,24 @@ type ClientGroup struct {
 }
 
 func (ClientGroup) TableName() string { return "client_groups" }
+
+// ClientSpeedDay is one UTC day of per-client speed: daily max/average and a
+// 5-minute series. Series is 288 little-endian uint32 pairs (down bps, up bps).
+type ClientSpeedDay struct {
+	Id          int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Email       string `json:"email" gorm:"uniqueIndex:idx_client_speed_day,priority:1;not null"`
+	Day         string `json:"day" gorm:"uniqueIndex:idx_client_speed_day,priority:2;not null;size:10"`
+	MaxDownBps  int64  `json:"-" gorm:"column:max_down_bps;default:0"`
+	MaxUpBps    int64  `json:"-" gorm:"column:max_up_bps;default:0"`
+	SumDownBps  int64  `json:"-" gorm:"column:sum_down_bps;default:0"`
+	SumUpBps    int64  `json:"-" gorm:"column:sum_up_bps;default:0"`
+	SamplesDown int    `json:"-" gorm:"column:samples_down;default:0"`
+	SamplesUp   int    `json:"-" gorm:"column:samples_up;default:0"`
+	Series      []byte `json:"-" gorm:"column:series"`
+	UpdatedAt   int64  `json:"-" gorm:"autoUpdateTime:milli"`
+}
+
+func (ClientSpeedDay) TableName() string { return "client_speed_days" }
 
 // MarshalJSON emits the reverse column as a nested JSON object rather than an
 // escaped JSON-text string, matching the same convention Inbound uses for its
@@ -1269,6 +1291,13 @@ func keepAliveValue(value *KeepAliveValue) KeepAliveValue {
 	return *value
 }
 
+func clampMbit(v int) int {
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
 func (c *Client) ToRecord() *ClientRecord {
 	rec := &ClientRecord{
 		Email:             c.Email,
@@ -1280,6 +1309,8 @@ func (c *Client) ToRecord() *ClientRecord {
 		Security:          c.Security,
 		ClientHostRuleIds: CloneClientHostRuleIds(c.ClientHostRuleIds),
 		LimitIP:           c.LimitIP,
+		SpeedDown:         clampMbit(c.SpeedDown),
+		SpeedUp:           clampMbit(c.SpeedUp),
 		TotalGB:           c.TotalGB,
 		ExpiryTime:        c.ExpiryTime,
 		Enable:            c.Enable,
@@ -1340,6 +1371,8 @@ func (r *ClientRecord) ToClient() *Client {
 		Security:          r.Security,
 		ClientHostRuleIds: CloneClientHostRuleIds(r.ClientHostRuleIds),
 		LimitIP:           r.LimitIP,
+		SpeedDown:         clampMbit(r.SpeedDown),
+		SpeedUp:           clampMbit(r.SpeedUp),
 		TotalGB:           r.TotalGB,
 		ExpiryTime:        r.ExpiryTime,
 		Enable:            r.Enable,
@@ -1559,6 +1592,27 @@ func MergeClientRecord(existing *ClientRecord, incoming *ClientRecord) []ClientM
 		if picked != existing.LimitIP {
 			keep("limitIp", existing.LimitIP, incoming.LimitIP, picked)
 			existing.LimitIP = picked
+		}
+	}
+	// 0 means "not in this snapshot", same as limitIp, so a partial merge cannot clear a cap.
+	if existing.SpeedDown != incoming.SpeedDown && incoming.SpeedDown != 0 {
+		picked := existing.SpeedDown
+		if existing.SpeedDown == 0 || incoming.SpeedDown > existing.SpeedDown {
+			picked = incoming.SpeedDown
+		}
+		if picked != existing.SpeedDown {
+			keep("speedDown", existing.SpeedDown, incoming.SpeedDown, picked)
+			existing.SpeedDown = picked
+		}
+	}
+	if existing.SpeedUp != incoming.SpeedUp && incoming.SpeedUp != 0 {
+		picked := existing.SpeedUp
+		if existing.SpeedUp == 0 || incoming.SpeedUp > existing.SpeedUp {
+			picked = incoming.SpeedUp
+		}
+		if picked != existing.SpeedUp {
+			keep("speedUp", existing.SpeedUp, incoming.SpeedUp, picked)
+			existing.SpeedUp = picked
 		}
 	}
 	if existing.LimitHwid != incoming.LimitHwid && incoming.LimitHwid != 0 {
