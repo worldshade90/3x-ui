@@ -474,7 +474,9 @@ func policeCmd(sl *slot) []string {
 }
 
 func delPolice(sl *slot) []string {
-	return []string{"tc", "action", "del", "police", "index", policeIndex(sl.Minor)}
+	// `tc action del police index N` is parsed as gact and returns
+	// "no index specified". The actions object form deletes the police.
+	return []string{"tc", "actions", "del", "action", "police", "index", policeIndex(sl.Minor)}
 }
 
 func classAdd(sl *slot) []string {

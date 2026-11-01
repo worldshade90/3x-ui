@@ -129,16 +129,32 @@ func (m *Manager) Sync(ctx context.Context, desired []Limit) error {
 		m.state = nil
 	}
 	m.iface = iface
+	// A redirect aimed at a missing ifbxui drops every packet. Clear those
+	// before any other decision, including the "not our filters" stop.
+	m.rollbackBlackhole(ctx, iface)
 	if !m.booted || m.blocked {
 		m.blocked = m.bootSweep(ctx, iface)
 		m.booted = true
 		m.state = nil
+		m.rollbackBlackhole(ctx, iface)
 		if m.blocked {
 			m.warn(iface + " has tc filters this panel does not own; set XUI_TC_FORCE=1 to replace them")
 			return nil
 		}
 	}
-	return m.apply(ctx, iface, desired)
+	upload := false
+	if wantsUpload(desired) {
+		upload = m.ensureIFB(ctx)
+		if !upload {
+			logger.Warning("speed limit: ifbxui is not up; upload shaping skipped so ingress redirects cannot blackhole traffic. Load the ifb module before starting x-ui (ProtectKernelModules blocks modprobe).")
+		}
+	}
+	if !upload {
+		desired = dropUpload(desired)
+	}
+	err = m.apply(ctx, iface, desired)
+	m.rollbackBlackhole(ctx, iface)
+	return err
 }
 
 func (m *Manager) disable(ctx context.Context) error {
@@ -211,8 +227,15 @@ func (m *Manager) runAll(ctx context.Context, cmds [][]string) error {
 		if len(c) == 0 {
 			continue
 		}
+		if isIngressRedirect(c) && !m.ifbUp(ctx) {
+			logger.Warning("speed limit: skipped ingress redirect because ifbxui is not up")
+			if failed == nil {
+				failed = errors.New("ifbxui is not up")
+			}
+			continue
+		}
 		_, err := m.runner.Run(ctx, c...)
-		if err != nil && !benign(err) {
+		if err != nil && !benignCmd(c, err) {
 			logger.Warningf("speed limit: %v", err)
 			if failed == nil {
 				failed = err
@@ -220,6 +243,62 @@ func (m *Manager) runAll(ctx context.Context, cmds [][]string) error {
 		}
 	}
 	return failed
+}
+
+func (m *Manager) ensureIFB(ctx context.Context) bool {
+	if m.ifbUp(ctx) {
+		return true
+	}
+	if _, err := m.runner.Run(ctx, "ip", "link", "add", ifbName, "type", "ifb"); err != nil && !benign(err) {
+		logger.Warningf("speed limit: cannot create %s: %v", ifbName, err)
+		return false
+	}
+	if _, err := m.runner.Run(ctx, "ip", "link", "set", ifbName, "up"); err != nil && !benign(err) {
+		logger.Warningf("speed limit: cannot set %s up: %v", ifbName, err)
+		return false
+	}
+	return m.ifbUp(ctx)
+}
+
+func (m *Manager) ifbUp(ctx context.Context) bool {
+	out, _ := m.runner.Run(ctx, "ip", "link", "show", ifbName)
+	return linkIsUp(ifbName, out)
+}
+
+func (m *Manager) rollbackBlackhole(ctx context.Context, iface string) {
+	if iface == "" || m.ifbUp(ctx) {
+		return
+	}
+	ingress, _ := m.runner.Run(ctx, "tc", "filter", "show", "dev", iface, "ingress")
+	cmds := danglingRedirectDeletes(iface, ingress)
+	if len(cmds) == 0 {
+		return
+	}
+	logger.Warning("speed limit: removing ingress redirects because ifbxui is not up")
+	_ = m.runAll(ctx, cmds)
+}
+
+func wantsUpload(limits []Limit) bool {
+	for _, lim := range limits {
+		if lim.UpBps > 0 && len(lim.IPs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func dropUpload(limits []Limit) []Limit {
+	out := make([]Limit, len(limits))
+	copy(out, limits)
+	for i := range out {
+		out[i].UpBps = 0
+	}
+	return out
+}
+
+func isIngressRedirect(args []string) bool {
+	joined := " " + strings.Join(args, " ") + " "
+	return strings.Contains(joined, " mirred ") || strings.Contains(joined, " redirect ")
 }
 
 func (m *Manager) warn(msg string) {
@@ -261,10 +340,17 @@ func (m *Manager) ensureIface(ctx context.Context) (string, error) {
 }
 
 func benign(err error) bool {
+	return benignCmd(nil, err)
+}
+
+func benignCmd(args []string, err error) bool {
 	if err == nil {
 		return true
 	}
 	s := err.Error()
+	if clsactAdd(args) && (strings.Contains(s, "Exclusivity flag on") || strings.Contains(s, "File exists")) {
+		return true
+	}
 	for _, frag := range []string{
 		"File exists",
 		"Cannot find device",
@@ -277,6 +363,18 @@ func benign(err error) bool {
 		"not found",
 	} {
 		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+func clsactAdd(args []string) bool {
+	if len(args) < 5 || args[0] != "tc" || args[1] != "qdisc" || args[2] != "add" {
+		return false
+	}
+	for _, arg := range args {
+		if arg == "clsact" {
 			return true
 		}
 	}

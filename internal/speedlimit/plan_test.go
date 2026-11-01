@@ -1,6 +1,7 @@
 package speedlimit
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -74,7 +75,7 @@ func TestDiffRecyclesFilterHandleAndClearsUnlimited(t *testing.T) {
 
 	cleared, st := Diff("eth0", st, nil)
 	got = joinCmds(cleared)
-	if !strings.Contains(got, "tc action del police index") || !strings.Contains(got, "tc qdisc del dev eth0 clsact") {
+	if !strings.Contains(got, "tc actions del action police index") || !strings.Contains(got, "tc qdisc del dev eth0 clsact") {
 		t.Fatalf("clearing the limit left rules behind:\n%s", got)
 	}
 	if st.OwnsClsact || st.HasIFB || len(st.Slots) != 0 {
@@ -116,6 +117,68 @@ func TestPlanSweepRefusesForeignFilters(t *testing.T) {
 	cmds, blocked = PlanSweep("eth0", "", "", false)
 	if blocked || strings.Contains(joinCmds(cmds), "qdisc del") {
 		t.Fatalf("empty clsact should only drop ifbxui, blocked=%v cmds=%s", blocked, joinCmds(cmds))
+	}
+}
+
+func TestPlanSweepKeepsDanglingRedirectUntilRemoved(t *testing.T) {
+	egress := "filter protocol ip pref 1 flower chain 0 handle 0x2\naction order 1: police 0x78750002 rate 819200bit\n"
+	ingress := "filter protocol ip pref 1 flower chain 0 handle 0x1\naction order 1: mirred (Egress Redirect to device *) stolen\n"
+	cmds, blocked := PlanSweep("eth0", egress, ingress, false)
+	if blocked {
+		t.Fatal("panel filters, including a redirect to a missing device, were treated as foreign")
+	}
+	got := joinCmds(cmds)
+	delAt := strings.Index(got, "tc filter del dev eth0 ingress")
+	linkAt := strings.Index(got, "ip link del ifbxui")
+	if delAt < 0 {
+		t.Fatalf("dangling redirect was not deleted:\n%s", got)
+	}
+	if linkAt >= 0 && linkAt < delAt {
+		t.Fatalf("ifbxui was deleted while the redirect still existed:\n%s", got)
+	}
+	if !strings.Contains(got, "handle 0x1") {
+		t.Fatalf("delete did not name the filter handle:\n%s", got)
+	}
+}
+
+func TestPlanSweepStillBlocksForeignFilters(t *testing.T) {
+	foreign := "filter protocol ip pref 1 u32 chain 0 handle 0x1\n  match ip dst 1.2.3.4\n"
+	dangling := "filter protocol ip pref 1 flower chain 0 handle 0x3\naction order 1: mirred (Egress Redirect to device *) stolen\n"
+	cmds, blocked := PlanSweep("eth0", foreign, dangling, false)
+	if !blocked {
+		t.Fatal("a foreign u32 filter was ignored")
+	}
+	got := joinCmds(cmds)
+	if strings.Contains(got, "qdisc del") || strings.Contains(got, "ip link del") {
+		t.Fatalf("sweep tore down the qdisc or ifb while a foreign filter remains:\n%s", got)
+	}
+	if !strings.Contains(got, "tc filter del dev eth0 ingress") {
+		t.Fatalf("dangling redirect was left in place:\n%s", got)
+	}
+}
+
+func TestLinkIsUp(t *testing.T) {
+	up := "3: ifbxui: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc htb state UNKNOWN"
+	if !linkIsUp("ifbxui", up) {
+		t.Fatal("UP flag not recognized")
+	}
+	down := "3: ifbxui: <BROADCAST,NOARP,LOWER_UP> mtu 1500"
+	if linkIsUp("ifbxui", down) {
+		t.Fatal("LOWER_UP without UP was treated as up")
+	}
+	if linkIsUp("ifbxui", "Device \"ifbxui\" does not exist.") {
+		t.Fatal("missing device was treated as up")
+	}
+}
+
+func TestBenignClsactExclusivity(t *testing.T) {
+	err := errors.New("tc qdisc add dev eth0 clsact: exit status 2 (Error: Exclusivity flag on, cannot modify.)")
+	cmd := []string{"tc", "qdisc", "add", "dev", "eth0", "clsact"}
+	if !benignCmd(cmd, err) {
+		t.Fatal("existing clsact was treated as a failure")
+	}
+	if benignCmd([]string{"tc", "filter", "add", "dev", "eth0"}, err) {
+		t.Fatal("exclusivity was ignored for a filter add")
 	}
 }
 
