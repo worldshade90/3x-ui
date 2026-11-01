@@ -173,7 +173,7 @@ const EMPTY: Values = {
   limitIp: 0,
   speedDown: 0,
   speedUp: 0,
-  speedUnit: 'kb' as const,
+  speedUnit: 'mbit' as const,
   limitHwid: 0,
   tgId: 0,
   group: '',
@@ -290,7 +290,7 @@ export default function ClientFormModal({
   const auth = useWatch({ control: methods.control, name: 'auth' });
   const wgPrivateKey = useWatch({ control: methods.control, name: 'wgPrivateKey' });
   const limitIp = useWatch({ control: methods.control, name: 'limitIp' });
-  const speedUnit = useWatch({ control: methods.control, name: 'speedUnit' }) || 'kb';
+  const speedUnit = useWatch({ control: methods.control, name: 'speedUnit' }) || 'mbit';
   const speedDown = useWatch({ control: methods.control, name: 'speedDown' });
   const speedUp = useWatch({ control: methods.control, name: 'speedUp' });
   function changeSpeedUnit(next: SpeedUnit) {
@@ -1016,7 +1016,7 @@ export default function ClientFormModal({
                               <InputNumber
                                 id={`${uid}-speed-down`}
                                 min={0}
-                                step={speedUnit === 'mb' ? 0.1 : 1}
+                                step={speedUnit === 'mbit' ? 0.1 : 1}
                                 value={speedDown}
                                 onChange={(value) =>
                                   methods.setValue('speedDown', Number(value) || 0)
@@ -1027,8 +1027,8 @@ export default function ClientFormModal({
                                 value={normalizeSpeedUnit(speedUnit)}
                                 popupMatchSelectWidth={false}
                                 options={[
-                                  { value: 'kb', label: t('pages.clients.speedUnitKb') },
-                                  { value: 'mb', label: t('pages.clients.speedUnitMb') },
+                                  { value: 'mbit', label: t('pages.clients.speedUnitMbit') },
+                                  { value: 'kbit', label: t('pages.clients.speedUnitKbit') },
                                 ]}
                                 onChange={(value) => changeSpeedUnit(value)}
                               />
@@ -1045,7 +1045,7 @@ export default function ClientFormModal({
                               <InputNumber
                                 id={`${uid}-speed-up`}
                                 min={0}
-                                step={speedUnit === 'mb' ? 0.1 : 1}
+                                step={speedUnit === 'mbit' ? 0.1 : 1}
                                 value={speedUp}
                                 onChange={(value) =>
                                   methods.setValue('speedUp', Number(value) || 0)
@@ -1056,8 +1056,8 @@ export default function ClientFormModal({
                                 value={normalizeSpeedUnit(speedUnit)}
                                 popupMatchSelectWidth={false}
                                 options={[
-                                  { value: 'kb', label: t('pages.clients.speedUnitKb') },
-                                  { value: 'mb', label: t('pages.clients.speedUnitMb') },
+                                  { value: 'mbit', label: t('pages.clients.speedUnitMbit') },
+                                  { value: 'kbit', label: t('pages.clients.speedUnitKbit') },
                                 ]}
                                 onChange={(value) => changeSpeedUnit(value)}
                               />

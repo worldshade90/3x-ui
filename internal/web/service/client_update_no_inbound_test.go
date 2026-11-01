@@ -37,8 +37,8 @@ func TestApplyClientRecordMerge_Speed(t *testing.T) {
 		t.Fatalf("got down=%d up=%d unit=%s", row.SpeedDown, row.SpeedUp, row.SpeedUnit)
 	}
 	applyClientRecordMerge(row, &model.ClientRecord{SpeedUnit: "kb"})
-	if row.SpeedUnit != "kb" {
-		t.Fatalf("unit = %s", row.SpeedUnit)
+	if row.SpeedUnit != "mbit" {
+		t.Fatalf("retired kb unit = %s", row.SpeedUnit)
 	}
 	applyClientRecordMerge(row, &model.ClientRecord{SpeedDown: -3, SpeedUp: -1})
 	if row.SpeedDown != 0 || row.SpeedUp != 0 {

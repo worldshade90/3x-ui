@@ -434,7 +434,8 @@ func migrateClientSpeedColumns() error {
 		}
 	}
 	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_unit") {
-		if err := db.Exec("UPDATE clients SET speed_unit = 'kb' WHERE speed_unit IS NULL OR speed_unit = ''").Error; err != nil {
+		// kb/mb were byte units. Bytes/s stay put; the label becomes mbit.
+		if err := db.Exec("UPDATE clients SET speed_unit = 'mbit' WHERE speed_unit IS NULL OR speed_unit = '' OR speed_unit IN ('kb', 'mb')").Error; err != nil {
 			return err
 		}
 	}

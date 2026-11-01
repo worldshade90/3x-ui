@@ -958,22 +958,22 @@ type Client struct {
 	AdTag               string           `json:"adTag,omitempty" example:"0123456789abcdef0123456789abcdef"`
 	Email               string           `json:"email"`   // Client email identifier
 	LimitIP             int              `json:"limitIp"` // IP limit for this client
-	// Download cap in bytes/s. 0 = unlimited. 1 KB/s = 1024 B/s, 1 MB/s = 1024 KB/s.
+	// Download cap in bytes/s. 0 = unlimited. 1 kbit/s = 125 B/s.
 	SpeedDown int64 `json:"speedDown" form:"speedDown" example:"0"`
-	// Upload cap in bytes/s. Legacy Mbit/s was 125000 B/s, so 1 MB/s ≈ 8.389 Mbit/s.
+	// Upload cap in bytes/s. 0 = unlimited. 1 Mbit/s = 125000 B/s.
 	SpeedUp      int64  `json:"speedUp" form:"speedUp" example:"0"`
-	SpeedUnit    string `json:"speedUnit" form:"speedUnit" example:"kb"` // Display unit: kb or mb.
-	TotalGB      int64  `json:"totalGB" form:"totalGB"`                  // Total traffic limit in GB
-	ExpiryTime   int64  `json:"expiryTime" form:"expiryTime"`            // Expiration timestamp
-	Enable       bool   `json:"enable" form:"enable"`                    // Whether the client is enabled
-	TgID         int64  `json:"tgId" form:"tgId"`                        // Telegram user ID for notifications
-	SubID        string `json:"subId" form:"subId"`                      // Subscription identifier
-	Group        string `json:"group,omitempty" form:"group"`            // Logical grouping label
-	Comment      string `json:"comment" form:"comment"`                  // Client comment
-	Reset        int    `json:"reset" form:"reset"`                      // Reset period in days
-	ResetDay     int    `json:"resetDay" form:"resetDay"`                // Calendar renewal day 1-31, 0 disables monthly renewal
-	ResetWeekday int    `json:"resetWeekday" form:"resetWeekday"`        // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
-	ResetMax     int    `json:"resetMax" form:"resetMax"`                // Max auto-renew count, 0 = unlimited
+	SpeedUnit    string `json:"speedUnit" form:"speedUnit" example:"mbit"` // Display unit: kbit or mbit.
+	TotalGB      int64  `json:"totalGB" form:"totalGB"`                    // Total traffic limit in GB
+	ExpiryTime   int64  `json:"expiryTime" form:"expiryTime"`              // Expiration timestamp
+	Enable       bool   `json:"enable" form:"enable"`                      // Whether the client is enabled
+	TgID         int64  `json:"tgId" form:"tgId"`                          // Telegram user ID for notifications
+	SubID        string `json:"subId" form:"subId"`                        // Subscription identifier
+	Group        string `json:"group,omitempty" form:"group"`              // Logical grouping label
+	Comment      string `json:"comment" form:"comment"`                    // Client comment
+	Reset        int    `json:"reset" form:"reset"`                        // Reset period in days
+	ResetDay     int    `json:"resetDay" form:"resetDay"`                  // Calendar renewal day 1-31, 0 disables monthly renewal
+	ResetWeekday int    `json:"resetWeekday" form:"resetWeekday"`          // Calendar weekday 1-7 (Mon-Sun), 0 disables weekly renewal
+	ResetMax     int    `json:"resetMax" form:"resetMax"`                  // Max auto-renew count, 0 = unlimited
 	// Per-client traffic reset cycle, independent of the inbound's own (#5497).
 	TrafficReset    string `json:"trafficReset,omitempty" form:"trafficReset" validate:"omitempty,oneof=never hourly daily weekly monthly"`
 	TrafficResetDay int    `json:"trafficResetDay,omitempty" form:"trafficResetDay" validate:"omitempty,gte=1,lte=31"`
@@ -1005,7 +1005,7 @@ type ClientRecord struct {
 	LimitIP           int            `json:"limitIp" gorm:"column:limit_ip"`
 	SpeedDown         int64          `json:"speedDown" gorm:"column:speed_down;default:0" example:"0"` // Download cap, bytes/s. 0 = unlimited.
 	SpeedUp           int64          `json:"speedUp" gorm:"column:speed_up;default:0" example:"0"`     // Upload cap, bytes/s. 0 = unlimited.
-	SpeedUnit         string         `json:"speedUnit" gorm:"column:speed_unit;default:kb" example:"kb"`
+	SpeedUnit         string         `json:"speedUnit" gorm:"column:speed_unit;default:mbit" example:"mbit"`
 	LimitHwid         int            `json:"limitHwid" gorm:"column:limit_hwid;default:0"`
 	TotalGB           int64          `json:"totalGB" gorm:"column:total_gb"`
 	ExpiryTime        int64          `json:"expiryTime" gorm:"column:expiry_time"`
@@ -1302,21 +1302,19 @@ func clampBps(v int64) int64 {
 	return v
 }
 
-// Speed caps are bytes/s. 1 KB/s = 1024 B/s and 1 MB/s = 1024 KB/s.
-// Legacy Mbit/s (tc mbit = 10^6 bit/s) is 125000 B/s, so 1 MB/s ≈ 8.389 Mbit/s.
+// Speed caps are bytes/s. tc kbit is 125 B/s and tc mbit is 125000 B/s.
 const (
-	SpeedBytesPerKB   int64 = 1024
-	SpeedBytesPerMB   int64 = 1024 * 1024
+	SpeedBytesPerKbit int64 = 125
 	SpeedBytesPerMbit int64 = 125_000
 )
 
-// NormalizeSpeedUnit keeps kb or mb. Anything else, including empty, is kb.
+// NormalizeSpeedUnit keeps kbit or mbit. Retired kb/mb and empty become mbit.
 func NormalizeSpeedUnit(unit string) string {
 	switch strings.ToLower(strings.TrimSpace(unit)) {
-	case "mb":
-		return "mb"
+	case "kbit":
+		return "kbit"
 	default:
-		return "kb"
+		return "mbit"
 	}
 }
 

@@ -15,11 +15,14 @@ func TestClientSpeedRoundTripAndMerge(t *testing.T) {
 		t.Fatalf("speed fields dropped from client JSON: %s", raw)
 	}
 
-	rec := (&Client{Email: "a@x", SpeedDown: -4, SpeedUp: 6, SpeedUnit: "mb"}).ToRecord()
-	if rec.SpeedDown != 0 || rec.SpeedUp != 6 || rec.SpeedUnit != "mb" {
+	rec := (&Client{Email: "a@x", SpeedDown: -4, SpeedUp: 6, SpeedUnit: "kbit"}).ToRecord()
+	if rec.SpeedDown != 0 || rec.SpeedUp != 6 || rec.SpeedUnit != "kbit" {
 		t.Fatalf("ToRecord = %+v", rec)
 	}
-	if got := (&Client{}).ToRecord().SpeedUnit; got != "kb" {
+	if got := (&Client{SpeedUnit: "mb"}).ToRecord().SpeedUnit; got != "mbit" {
+		t.Fatalf("retired mb unit = %q", got)
+	}
+	if got := (&Client{}).ToRecord().SpeedUnit; got != "mbit" {
 		t.Fatalf("empty unit = %q", got)
 	}
 	back := rec.ToClient()
@@ -36,13 +39,13 @@ func TestClientSpeedRoundTripAndMerge(t *testing.T) {
 	if existing.SpeedDown != 25 || existing.SpeedUp != 4 {
 		t.Fatalf("merge = %+v", existing)
 	}
-	existing.SpeedUnit = "kb"
+	existing.SpeedUnit = "kbit"
 	MergeClientRecord(existing, &ClientRecord{SpeedUnit: "", UpdatedAt: 9})
-	if existing.SpeedUnit != "kb" {
+	if existing.SpeedUnit != "kbit" {
 		t.Fatalf("empty unit wiped the display unit: %q", existing.SpeedUnit)
 	}
-	MergeClientRecord(existing, &ClientRecord{SpeedUnit: "mb", UpdatedAt: 10})
-	if existing.SpeedUnit != "mb" {
+	MergeClientRecord(existing, &ClientRecord{SpeedUnit: "kb", UpdatedAt: 10})
+	if existing.SpeedUnit != "mbit" {
 		t.Fatalf("unit = %q", existing.SpeedUnit)
 	}
 }

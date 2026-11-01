@@ -1838,8 +1838,8 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "integer"
       },
       "speedUnit": {
-        "description": "Display unit: kb or mb.",
-        "example": "kb",
+        "description": "Display unit: kbit or mbit.",
+        "example": "mbit",
         "type": "string"
       },
       "speedUp": {
@@ -2083,7 +2083,7 @@ export const SCHEMAS: Record<string, unknown> = {
         "type": "integer"
       },
       "speedUnit": {
-        "example": "kb",
+        "example": "mbit",
         "type": "string"
       },
       "speedUp": {

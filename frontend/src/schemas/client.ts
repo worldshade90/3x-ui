@@ -344,7 +344,7 @@ export const ClientFormSchema = z.object({
   limitIp: z.number().int().min(0),
   speedDown: z.number().min(0),
   speedUp: z.number().min(0),
-  speedUnit: z.enum(['kb', 'mb']),
+  speedUnit: z.enum(['kbit', 'mbit']),
   limitHwid: z.number().int().min(0),
   tgId: z.number().int().min(0),
   group: z.string(),

@@ -6,7 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { z } from 'zod';
 
 import { Sparkline } from '@/components/viz';
-import { formatSpeed, type SpeedUnit } from '@/lib/clients/speedUnit';
+import { formatDisplay, formatSpeed, kbsToUnit, type SpeedUnit } from '@/lib/clients/speedUnit';
 import {
   ClientSpeedDaySchema,
   ClientSpeedSeriesSchema,
@@ -52,7 +52,7 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
   const { t } = useTranslation();
   const [day, setDay] = useState(utcToday);
   const [email, setEmail] = useState<string | null>(null);
-  const [unit, setUnit] = useState<SpeedUnit>('kb');
+  const [unit, setUnit] = useState<SpeedUnit>('mbit');
 
   const days = useQuery({
     queryKey: ['clients', 'speedStats', day],
@@ -67,7 +67,8 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
 
   const rows = days.data ?? [];
   const points = series.data?.points ?? [];
-  const unitLabel = unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb');
+  const unitLabel =
+    unit === 'kbit' ? t('pages.clients.speedUnitKbit') : t('pages.clients.speedUnitMbit');
   const columns: ColumnsType<ClientSpeedDay> = [
     { title: t('pages.clients.email'), dataIndex: 'email', key: 'email' },
     {
@@ -113,12 +114,13 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
           }}
         />
         <Select<SpeedUnit>
-          aria-label={t('pages.clients.speedUnitKb')}
+          aria-label={unitLabel}
           value={unit}
           popupMatchSelectWidth={false}
+          style={{ width: 100 }}
           options={[
-            { value: 'kb', label: t('pages.clients.speedUnitKb') },
-            { value: 'mb', label: t('pages.clients.speedUnitMb') },
+            { value: 'mbit', label: t('pages.clients.speedUnitMbit') },
+            { value: 'kbit', label: t('pages.clients.speedUnitKbit') },
           ]}
           onChange={setUnit}
         />
@@ -144,11 +146,11 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
       </Typography.Title>
       {email && points.length > 0 ? (
         <Sparkline
-          data={points.map((point) => (unit === 'mb' ? point.downKBs / 1024 : point.downKBs))}
-          data2={points.map((point) => (unit === 'mb' ? point.upKBs / 1024 : point.upKBs))}
+          data={points.map((point) => kbsToUnit(point.downKBs, unit))}
+          data2={points.map((point) => kbsToUnit(point.upKBs, unit))}
           labels={points.map((point) => labelFor(point.sec))}
-          name1={`${t('pages.clients.speedDownload')} (${unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb')})`}
-          name2={`${t('pages.clients.speedUpload')} (${unit === 'mb' ? t('pages.clients.speedUnitMb') : t('pages.clients.speedUnitKb')})`}
+          name1={`${t('pages.clients.speedDownload')} (${unitLabel})`}
+          name2={`${t('pages.clients.speedUpload')} (${unitLabel})`}
           height={220}
           maxPoints={288}
           showAxes
@@ -156,7 +158,7 @@ export default function ClientSpeedStatsModal({ open, onClose }: ClientSpeedStat
           showGrid
           valueMin={0}
           valueMax={null}
-          yFormatter={(value) => formatSpeed(value, 'kb')}
+          yFormatter={(value) => formatDisplay(value)}
         />
       ) : (
         <Typography.Text type="secondary">{t('pages.clients.speedPickClient')}</Typography.Text>
