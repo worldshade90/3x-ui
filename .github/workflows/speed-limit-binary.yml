@@ -14,7 +14,8 @@ permissions:
 
 jobs:
   linux-amd64:
-    runs-on: ubuntu-latest
+    # Pin 24.04: a glibc from a newer runner will not start on Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
