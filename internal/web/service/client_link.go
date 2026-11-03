@@ -14,6 +14,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+func nonNegative(v int64) int64 {
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
 // applyClientRecordMerge merges incoming client-record fields onto row using the
 // same rules everywhere a client record is persisted: scalar quota / lifecycle /
 // subscription fields are applied unconditionally (so clearing them takes
@@ -65,6 +72,11 @@ func applyClientRecordMerge(row *model.ClientRecord, incoming *model.ClientRecor
 	}
 	row.SubID = incoming.SubID
 	row.LimitIP = incoming.LimitIP
+	row.SpeedDown = nonNegative(incoming.SpeedDown)
+	row.SpeedUp = nonNegative(incoming.SpeedUp)
+	if strings.TrimSpace(incoming.SpeedUnit) != "" {
+		row.SpeedUnit = model.NormalizeSpeedUnit(incoming.SpeedUnit)
+	}
 	row.TotalGB = incoming.TotalGB
 	row.ExpiryTime = incoming.ExpiryTime
 	row.Enable = incoming.Enable

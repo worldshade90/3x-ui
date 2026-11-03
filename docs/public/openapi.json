@@ -1857,6 +1857,23 @@
             "description": "Security method (e.g., \"auto\", \"aes-128-gcm\")",
             "type": "string"
           },
+          "speedDown": {
+            "description": "Download cap in bytes/s. 0 = unlimited. 1 kbit/s = 125 B/s.",
+            "example": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "speedUnit": {
+            "description": "Display unit: kbit or mbit.",
+            "example": "mbit",
+            "type": "string"
+          },
+          "speedUp": {
+            "description": "Upload cap in bytes/s. 0 = unlimited. 1 Mbit/s = 125000 B/s.",
+            "example": 0,
+            "format": "int64",
+            "type": "integer"
+          },
           "subId": {
             "description": "Subscription identifier",
             "type": "string"
@@ -1904,6 +1921,9 @@
           "resetMax",
           "resetWeekday",
           "security",
+          "speedDown",
+          "speedUnit",
+          "speedUp",
           "subId",
           "tgId",
           "totalGB"
@@ -2082,6 +2102,22 @@
           "security": {
             "type": "string"
           },
+          "speedDown": {
+            "description": "Download cap, bytes/s. 0 = unlimited.",
+            "example": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "speedUnit": {
+            "example": "mbit",
+            "type": "string"
+          },
+          "speedUp": {
+            "description": "Upload cap, bytes/s. 0 = unlimited.",
+            "example": 0,
+            "format": "int64",
+            "type": "integer"
+          },
           "subId": {
             "type": "string"
           },
@@ -2134,6 +2170,9 @@
           "reverse",
           "secret",
           "security",
+          "speedDown",
+          "speedUnit",
+          "speedUp",
           "subId",
           "tgId",
           "totalGB",
@@ -8360,6 +8399,125 @@
                       "type": "string"
                     },
                     "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/speedStats": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "Daily per-client speed summary for one UTC day. max* is the highest sample, avg* averages only samples that carried traffic in that direction. Speeds are KB/s. day defaults to today UTC.",
+        "operationId": "get_panel_api_clients_speedStats",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "description": "UTC day, YYYY-MM-DD. Defaults to today.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    {
+                      "email": "alice@example.com",
+                      "maxDownKBs": 1200.5,
+                      "maxUpKBs": 80,
+                      "avgDownKBs": 400.25,
+                      "avgUpKBs": 20,
+                      "samplesDown": 12,
+                      "samplesUp": 4
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/speedStats/{email}": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "5-minute speed buckets for one client on one UTC day (288 points, zeros included). Speeds are KB/s. sec is seconds from 00:00 UTC.",
+        "operationId": "get_panel_api_clients_speedStats_email",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "path",
+            "required": true,
+            "description": "Client email.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "description": "UTC day, YYYY-MM-DD. Defaults to today.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "email": "alice@example.com",
+                    "day": "2026-11-01",
+                    "points": [
+                      {
+                        "sec": 0,
+                        "downKBs": 0,
+                        "upKBs": 0
+                      }
+                    ]
                   }
                 }
               }

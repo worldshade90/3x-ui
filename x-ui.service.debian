@@ -71,8 +71,11 @@ UMask=0077
 # AF_NETLINK for interface/route lookups and the ip(8) child used by the
 # AmneziaWG IPv6-alias feature.
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
-# NET_ADMIN for ip(8)/tproxy, NET_BIND_SERVICE for ports below 1024, NET_RAW
-# for raw sockets and SO_BINDTODEVICE.
+# NET_ADMIN for ip(8)/tproxy and `ip link add type ifb`, NET_BIND_SERVICE for
+# ports below 1024, NET_RAW for raw sockets and SO_BINDTODEVICE.
+# PrivateNetwork stays off so ip/tc see eth0. ProtectKernelModules blocks
+# modprobe, so load ifb before start or upload shaping is skipped.
+PrivateNetwork=no
 #
 # DAC_OVERRIDE has to stay. The panel runs as root, but a bounding set is
 # subtracted from root's own privileges too: without it root can only read a

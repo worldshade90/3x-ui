@@ -1831,6 +1831,23 @@ export const SCHEMAS: Record<string, unknown> = {
         "description": "Security method (e.g., \"auto\", \"aes-128-gcm\")",
         "type": "string"
       },
+      "speedDown": {
+        "description": "Download cap in bytes/s. 0 = unlimited. 1 kbit/s = 125 B/s.",
+        "example": 0,
+        "format": "int64",
+        "type": "integer"
+      },
+      "speedUnit": {
+        "description": "Display unit: kbit or mbit.",
+        "example": "mbit",
+        "type": "string"
+      },
+      "speedUp": {
+        "description": "Upload cap in bytes/s. 0 = unlimited. 1 Mbit/s = 125000 B/s.",
+        "example": 0,
+        "format": "int64",
+        "type": "integer"
+      },
       "subId": {
         "description": "Subscription identifier",
         "type": "string"
@@ -1878,6 +1895,9 @@ export const SCHEMAS: Record<string, unknown> = {
       "resetMax",
       "resetWeekday",
       "security",
+      "speedDown",
+      "speedUnit",
+      "speedUp",
       "subId",
       "tgId",
       "totalGB"
@@ -2056,6 +2076,22 @@ export const SCHEMAS: Record<string, unknown> = {
       "security": {
         "type": "string"
       },
+      "speedDown": {
+        "description": "Download cap, bytes/s. 0 = unlimited.",
+        "example": 0,
+        "format": "int64",
+        "type": "integer"
+      },
+      "speedUnit": {
+        "example": "mbit",
+        "type": "string"
+      },
+      "speedUp": {
+        "description": "Upload cap, bytes/s. 0 = unlimited.",
+        "example": 0,
+        "format": "int64",
+        "type": "integer"
+      },
       "subId": {
         "type": "string"
       },
@@ -2108,6 +2144,9 @@ export const SCHEMAS: Record<string, unknown> = {
       "reverse",
       "secret",
       "security",
+      "speedDown",
+      "speedUnit",
+      "speedUp",
       "subId",
       "tgId",
       "totalGB",

@@ -87,6 +87,7 @@ func allModels() []any {
 		&model.OutboundSubscription{},
 		&model.SubBalancer{},
 		&model.TuicTrafficReceipt{},
+		&model.ClientSpeedDay{},
 	}
 }
 
@@ -213,6 +214,9 @@ func initModels() error {
 		return err
 	}
 	if err := migrateClientEmailLowerIndex(); err != nil {
+		return err
+	}
+	if err := migrateClientSpeedColumns(); err != nil {
 		return err
 	}
 	if IsPostgres() {
@@ -410,6 +414,57 @@ func migrateSyncOrphanColumns() error {
 
 // The client identity checks match emails case-insensitively; without an
 // expression index (which no GORM struct tag can declare) they seq-scan.
+// AutoMigrate adds speed_down/speed_up. Older SQLite ALTER TABLE leaves them
+// NULL, and a NULL scan into int fails the whole clients query.
+func migrateClientSpeedColumns() error {
+	if !db.Migrator().HasTable(&model.ClientRecord{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_down") {
+		if err := db.Exec("UPDATE clients SET speed_down = 0 WHERE speed_down IS NULL").Error; err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_up") {
+		if err := db.Exec("UPDATE clients SET speed_up = 0 WHERE speed_up IS NULL").Error; err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasColumn(&model.ClientRecord{}, "speed_unit") {
+		// kb/mb were byte units. Bytes/s stay put; the label becomes mbit.
+		if err := db.Exec("UPDATE clients SET speed_unit = 'mbit' WHERE speed_unit IS NULL OR speed_unit = '' OR speed_unit IN ('kb', 'mb')").Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateClientSpeedMbitToBytes rewrites the first speed-limit release, which
+// stored tc mbit (10^6 bit/s). 1 Mbit/s = 125000 B/s, and the seeder runs once.
+func migrateClientSpeedMbitToBytes() error {
+	const seederName = "SpeedMbitToBytes"
+	if !db.Migrator().HasTable(&model.ClientRecord{}) || !db.Migrator().HasColumn(&model.ClientRecord{}, "speed_down") {
+		return nil
+	}
+	var count int64
+	if err := db.Model(&model.HistoryOfSeeders{}).Where("seeder_name = ?", seederName).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	scale := model.SpeedBytesPerMbit
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("UPDATE clients SET speed_down = speed_down * ? WHERE speed_down > 0", scale).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE clients SET speed_up = speed_up * ? WHERE speed_up > 0", scale).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.HistoryOfSeeders{SeederName: seederName}).Error
+	})
+}
+
 func migrateClientEmailLowerIndex() error {
 	if db.Migrator().HasIndex(&model.ClientRecord{}, "idx_clients_email_lower") {
 		return nil
@@ -1534,6 +1589,12 @@ func runSeeders(isUsersEmpty bool) error {
 			}
 		}
 		return seedApiTokens()
+	}
+
+	// A history row from initModels makes a blank database look used, so the
+	// one-shot host and mtproto seeders would run before any inbound exists.
+	if err := migrateClientSpeedMbitToBytes(); err != nil {
+		return err
 	}
 
 	var seedersHistory []string

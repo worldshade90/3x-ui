@@ -32,6 +32,7 @@ import {
   type BulkDetachResult,
 } from '@/schemas/client';
 import { DefaultsPayloadSchema } from '@/schemas/defaults';
+import { normalizeSpeedUnit } from '@/lib/clients/speedUnit';
 import { TRAFFIC_POLL_INTERVAL_S } from '@/lib/traffic/poll-interval';
 
 // One row sent to POST /clients/:email/externalLinks.
@@ -718,6 +719,9 @@ export function useClients(options: UseClientsOptions = {}) {
         totalGB: base.totalGB || 0,
         expiryTime: base.expiryTime || 0,
         limitIp: base.limitIp || 0,
+        speedDown: base.speedDown || 0,
+        speedUp: base.speedUp || 0,
+        speedUnit: normalizeSpeedUnit(base.speedUnit),
         limitHwid: base.limitHwid || 0,
         tgId: Number(base.tgId) || 0,
         reset: Number(base.reset) || 0,

@@ -37,6 +37,9 @@ export const ClientRecordSchema = z
     totalGB: z.number().optional(),
     expiryTime: z.number().optional(),
     limitIp: z.number().optional(),
+    speedDown: z.number().optional(),
+    speedUp: z.number().optional(),
+    speedUnit: z.string().optional(),
     limitHwid: z.number().optional(),
     tgId: z.union([z.number(), z.string()]).optional(),
     group: z.string().optional(),
@@ -339,6 +342,9 @@ export const ClientFormSchema = z.object({
   trafficReset: z.enum(['never', 'hourly', 'daily', 'weekly', 'monthly']),
   trafficResetDay: z.number().int().min(1).max(31),
   limitIp: z.number().int().min(0),
+  speedDown: z.number().min(0),
+  speedUp: z.number().min(0),
+  speedUnit: z.enum(['kbit', 'mbit']),
   limitHwid: z.number().int().min(0),
   tgId: z.number().int().min(0),
   group: z.string(),
@@ -421,5 +427,29 @@ export type BulkAttachResult = z.infer<typeof BulkAttachResultSchema>;
 export type BulkDetachResult = z.infer<typeof BulkDetachResultSchema>;
 export type ClientBulkAddFormValues = z.infer<typeof ClientBulkAddFormSchema>;
 export type ClientBulkAdjustFormValues = z.infer<typeof ClientBulkAdjustFormSchema>;
+export const ClientSpeedDaySchema = z.object({
+  email: z.string(),
+  maxDownKBs: z.number(),
+  maxUpKBs: z.number(),
+  avgDownKBs: z.number(),
+  avgUpKBs: z.number(),
+  samplesDown: z.number(),
+  samplesUp: z.number(),
+});
+
+export const ClientSpeedSeriesSchema = z.object({
+  email: z.string(),
+  day: z.string(),
+  points: z.array(
+    z.object({
+      sec: z.number(),
+      downKBs: z.number(),
+      upKBs: z.number(),
+    }),
+  ),
+});
+
+export type ClientSpeedDay = z.infer<typeof ClientSpeedDaySchema>;
+export type ClientSpeedSeries = z.infer<typeof ClientSpeedSeriesSchema>;
 export type ClientFormValues = z.infer<typeof ClientFormSchema>;
 export type GroupSummary = z.infer<typeof GroupSummarySchema>;

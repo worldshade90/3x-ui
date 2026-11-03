@@ -37,6 +37,7 @@ import {
   EditOutlined,
   FilterOutlined,
   InfoCircleOutlined,
+  LineChartOutlined,
   LinkOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -81,6 +82,7 @@ import {
   SPEED_TAG_STYLE,
 } from '@/components/utility/speedTagStyle';
 const ClientFormModal = lazy(() => import('./ClientFormModal'));
+const ClientSpeedStatsModal = lazy(() => import('./ClientSpeedStatsModal'));
 const ClientInfoModal = lazy(() => import('./ClientInfoModal'));
 const ClientQrModal = lazy(() => import('./ClientQrModal'));
 const ClientBulkAddModal = lazy(() => import('./ClientBulkAddModal'));
@@ -394,6 +396,7 @@ export default function ClientsPage() {
 
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [editingAttachedIds, setEditingAttachedIds] = useState<number[]>([]);
@@ -1414,6 +1417,13 @@ export default function ClientsPage() {
                               {t('pages.clients.selectedCount', { count: selectedRowKeys.length })}
                             </Tag>
                           )}
+                          <Button
+                            icon={<LineChartOutlined aria-hidden />}
+                            onClick={() => setSpeedOpen(true)}
+                            aria-label={t('pages.clients.speedStats')}
+                          >
+                            {!isMobile && t('pages.clients.speedStats')}
+                          </Button>
                           <Dropdown
                             trigger={['click']}
                             placement="bottomRight"
@@ -1899,6 +1909,9 @@ export default function ClientsPage() {
           </Layout.Content>
         </Layout>
 
+        <LazyMount when={speedOpen}>
+          <ClientSpeedStatsModal open={speedOpen} onClose={() => setSpeedOpen(false)} />
+        </LazyMount>
         <LazyMount when={formOpen}>
           <ClientFormModal
             open={formOpen}

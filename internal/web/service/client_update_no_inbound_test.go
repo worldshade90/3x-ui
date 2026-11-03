@@ -8,6 +8,44 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
+func TestUpdate_ClearsSpeedLimit_NoInbound(t *testing.T) {
+	setupBulkDB(t)
+	svc := &ClientService{}
+	rec := &model.ClientRecord{Email: "speed-clear@x", UUID: "11111111-1111-1111-1111-111111111111", SpeedDown: 10, SpeedUp: 5, Enable: true}
+	if err := database.GetDB().Create(rec).Error; err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	updated := rec.ToClient()
+	updated.SpeedDown = 0
+	updated.SpeedUp = 0
+	if _, err := svc.Update(&InboundService{}, rec.Id, *updated, rec.LimitHwid); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got, err := svc.GetByID(rec.Id)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.SpeedDown != 0 || got.SpeedUp != 0 {
+		t.Fatalf("speed not cleared: down=%d up=%d", got.SpeedDown, got.SpeedUp)
+	}
+}
+
+func TestApplyClientRecordMerge_Speed(t *testing.T) {
+	row := &model.ClientRecord{SpeedDown: 10, SpeedUp: 4, SpeedUnit: "mb"}
+	applyClientRecordMerge(row, &model.ClientRecord{SpeedDown: 0, SpeedUp: 8})
+	if row.SpeedDown != 0 || row.SpeedUp != 8 || row.SpeedUnit != "mb" {
+		t.Fatalf("got down=%d up=%d unit=%s", row.SpeedDown, row.SpeedUp, row.SpeedUnit)
+	}
+	applyClientRecordMerge(row, &model.ClientRecord{SpeedUnit: "kb"})
+	if row.SpeedUnit != "mbit" {
+		t.Fatalf("retired kb unit = %s", row.SpeedUnit)
+	}
+	applyClientRecordMerge(row, &model.ClientRecord{SpeedDown: -3, SpeedUp: -1})
+	if row.SpeedDown != 0 || row.SpeedUp != 0 {
+		t.Fatalf("negative cap stored: down=%d up=%d", row.SpeedDown, row.SpeedUp)
+	}
+}
+
 func TestUpdate_PersistsFields_NoInbound(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -38,6 +76,18 @@ func TestUpdate_PersistsFields_NoInbound(t *testing.T) {
 			mutate:   func(c *model.Client) { c.LimitIP = 7 },
 			readBack: func(rec *model.ClientRecord) any { return rec.LimitIP },
 			want:     7,
+		},
+		{
+			name:     "speedDown",
+			mutate:   func(c *model.Client) { c.SpeedDown = 15 },
+			readBack: func(rec *model.ClientRecord) any { return rec.SpeedDown },
+			want:     int64(15),
+		},
+		{
+			name:     "speedUp",
+			mutate:   func(c *model.Client) { c.SpeedUp = 4 },
+			readBack: func(rec *model.ClientRecord) any { return rec.SpeedUp },
+			want:     int64(4),
 		},
 		{
 			name:     "tgId",

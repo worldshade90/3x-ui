@@ -34,6 +34,7 @@ import { HttpUtil, IntlUtil, RandomUtil, Wireguard } from '@/utils';
 import { formatInboundLabel } from '@/lib/inbounds/label';
 import { generateMtprotoSecret } from '@/lib/xray/inbound-defaults';
 import { normalizeClientIps, type ClientIpInfo } from '@/lib/clients/ip-log';
+import { fromBps, normalizeSpeedUnit, toBps, type SpeedUnit } from '@/lib/clients/speedUnit';
 import { resolveExternalLinkExpiry } from '@/lib/clients/external-link';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import { useClientHwids } from '@/hooks/useClientHwids';
@@ -170,6 +171,9 @@ const EMPTY: Values = {
   trafficReset: 'never' as const,
   trafficResetDay: 1,
   limitIp: 0,
+  speedDown: 0,
+  speedUp: 0,
+  speedUnit: 'mbit' as const,
   limitHwid: 0,
   tgId: 0,
   group: '',
@@ -286,6 +290,16 @@ export default function ClientFormModal({
   const auth = useWatch({ control: methods.control, name: 'auth' });
   const wgPrivateKey = useWatch({ control: methods.control, name: 'wgPrivateKey' });
   const limitIp = useWatch({ control: methods.control, name: 'limitIp' });
+  const speedUnit = useWatch({ control: methods.control, name: 'speedUnit' }) || 'mbit';
+  const speedDown = useWatch({ control: methods.control, name: 'speedDown' });
+  const speedUp = useWatch({ control: methods.control, name: 'speedUp' });
+  function changeSpeedUnit(next: SpeedUnit) {
+    const current = normalizeSpeedUnit(speedUnit);
+    if (next === current) return;
+    methods.setValue('speedDown', fromBps(toBps(Number(speedDown) || 0, current), next));
+    methods.setValue('speedUp', fromBps(toBps(Number(speedUp) || 0, current), next));
+    methods.setValue('speedUnit', next);
+  }
   const {
     fields: externalLinkFields,
     append: appendExternalLink,
@@ -389,6 +403,9 @@ export default function ClientFormModal({
         trafficReset: (client.trafficReset as ClientFormValues['trafficReset']) || 'never',
         trafficResetDay: Number(client.trafficResetDay) || 1,
         limitIp: client.limitIp || 0,
+        speedUnit: normalizeSpeedUnit(client.speedUnit),
+        speedDown: fromBps(client.speedDown || 0, normalizeSpeedUnit(client.speedUnit)),
+        speedUp: fromBps(client.speedUp || 0, normalizeSpeedUnit(client.speedUnit)),
         limitHwid: client.limitHwid || 0,
         tgId: Number(client.tgId) || 0,
         group: client.group || '',
@@ -754,6 +771,9 @@ export default function ClientFormModal({
       trafficReset: values.trafficReset,
       trafficResetDay: values.trafficResetDay,
       limitIp: values.limitIp,
+      speedDown: values.speedDown,
+      speedUp: values.speedUp,
+      speedUnit: values.speedUnit,
       limitHwid: values.limitHwid,
       tgId: values.tgId,
       group: values.group,
@@ -792,6 +812,9 @@ export default function ClientFormModal({
       trafficReset: values.trafficReset || 'never',
       trafficResetDay: Number(values.trafficResetDay) || 1,
       limitIp: Number(values.limitIp) || 0,
+      speedDown: toBps(Number(values.speedDown) || 0, values.speedUnit),
+      speedUp: toBps(Number(values.speedUp) || 0, values.speedUnit),
+      speedUnit: values.speedUnit,
       limitHwid: Number(values.limitHwid) || 0,
       tgId: Number(values.tgId) || 0,
       group: values.group,
@@ -982,6 +1005,64 @@ export default function ClientFormModal({
                           >
                             <InputNumber min={0} step={1} style={{ width: '100%' }} />
                           </FormField>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            htmlFor={`${uid}-speed-down`}
+                            label={t('pages.clients.speedDown')}
+                            tooltip={t('pages.clients.speedDownDesc')}
+                          >
+                            <Space.Compact className="speed-limit-compact">
+                              <InputNumber
+                                id={`${uid}-speed-down`}
+                                min={0}
+                                step={speedUnit === 'mbit' ? 0.1 : 1}
+                                value={speedDown}
+                                onChange={(value) =>
+                                  methods.setValue('speedDown', Number(value) || 0)
+                                }
+                              />
+                              <Select
+                                aria-label={t('pages.clients.speedDown')}
+                                value={normalizeSpeedUnit(speedUnit)}
+                                popupMatchSelectWidth={false}
+                                options={[
+                                  { value: 'mbit', label: t('pages.clients.speedUnitMbit') },
+                                  { value: 'kbit', label: t('pages.clients.speedUnitKbit') },
+                                ]}
+                                onChange={(value) => changeSpeedUnit(value)}
+                              />
+                            </Space.Compact>
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            htmlFor={`${uid}-speed-up`}
+                            label={t('pages.clients.speedUp')}
+                            tooltip={t('pages.clients.speedUpDesc')}
+                          >
+                            <Space.Compact className="speed-limit-compact">
+                              <InputNumber
+                                id={`${uid}-speed-up`}
+                                min={0}
+                                step={speedUnit === 'mbit' ? 0.1 : 1}
+                                value={speedUp}
+                                onChange={(value) =>
+                                  methods.setValue('speedUp', Number(value) || 0)
+                                }
+                              />
+                              <Select
+                                aria-label={t('pages.clients.speedUp')}
+                                value={normalizeSpeedUnit(speedUnit)}
+                                popupMatchSelectWidth={false}
+                                options={[
+                                  { value: 'mbit', label: t('pages.clients.speedUnitMbit') },
+                                  { value: 'kbit', label: t('pages.clients.speedUnitKbit') },
+                                ]}
+                                onChange={(value) => changeSpeedUnit(value)}
+                              />
+                            </Space.Compact>
+                          </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item
